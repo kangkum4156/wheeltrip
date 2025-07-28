@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wheeltrip/signin/firebase_service_login.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -16,13 +17,23 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _counterEmailController = TextEditingController();
+
+  String? _selectedMode;
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedMode == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("모드를 선택하세요.")),
+      );
+      return;
+    }
 
     final email = _emailController.text.trim();
+    final counterEmail = _counterEmailController.text.trim();
 
-    if (await isEmailDuplicate(email)) { ///firebase_service에서 이메일 중복 확인
+    if (await isEmailDuplicate(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("이미 등록된 이메일입니다.")),
       );
@@ -30,12 +41,62 @@ class _SignupScreenState extends State<SignupScreen> {
     }
 
     try {
-      await registerToFirestore(
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
+      // 상대 이메일 유효성 체크 (입력했을 경우만)
+      if (counterEmail.isNotEmpty) {
+        final counterUser = await FirebaseFirestore.instance
+            .collection("users")
+            .where("email", isEqualTo: counterEmail)
+            .limit(1)
+            .get();
+
+        if (counterUser.docs.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("이메일이 유효하지 않습니다.")),
+          );
+          return;
+        }
+      }
+
+      // Firebase Auth 회원 생성
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
         email: email,
         password: _passwordController.text.trim(),
       );
+
+      // Firestore 저장 데이터
+      final userData = {
+        "name": _nameController.text.trim(),
+        "phone": _phoneController.text.trim(),
+        "email": email,
+        "mode": _selectedMode,
+        "counter_email": counterEmail.isNotEmpty ? counterEmail : null,
+        "location": null
+      };
+
+      // 내 정보 저장
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(userCredential.user!.email)
+          .set(userData);
+
+      // 상대 이메일이 있다면 상대의 Firestore에도 나를 counter_email로 등록
+      if (counterEmail.isNotEmpty) {
+        final counterUserDoc = await FirebaseFirestore.instance
+            .collection("users")
+            .where("email", isEqualTo: counterEmail)
+            .limit(1)
+            .get();
+
+        if (counterUserDoc.docs.isNotEmpty) {
+          final counterDocId = counterUserDoc.docs.first.id;
+          await FirebaseFirestore.instance
+              .collection("users")
+              .doc(counterDocId)
+              .update({"counter_email": email});
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("회원가입 완료")),
       );
@@ -58,34 +119,74 @@ class _SignupScreenState extends State<SignupScreen> {
           child: SingleChildScrollView(
             child: Column(
               children: [
+                // 이름
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(labelText: "이름"),
-                  validator: (value) => value!.isEmpty ? "이름을 입력하세요." : null,
+                  validator: (value) =>
+                  value!.isEmpty ? "이름을 입력하세요." : null,
                 ),
                 const SizedBox(height: 10),
+
+                // 전화번호
                 TextFormField(
                   controller: _phoneController,
                   decoration: const InputDecoration(labelText: "전화번호"),
-                  validator: (value) => value!.length != 11 ? "올바르지 않은 형식." : null,
+                  validator: (value) => value!.length != 11
+                      ? "올바르지 않은 형식입니다."
+                      : null,
                 ),
                 const SizedBox(height: 10),
+
+                // 이메일
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(labelText: "이메일"),
-                  validator: (value) => value!.isEmpty ? "이메일을 입력하세요." : null,
+                  validator: (value) =>
+                  value!.isEmpty ? "이메일을 입력하세요." : null,
                 ),
                 const SizedBox(height: 10),
+
+                // 비밀번호
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: "비밀번호"),
-                  validator: (value) => value!.length < 6 ? "6자 이상 입력하세요." : null,
+                  validator: (value) =>
+                  value!.length < 6 ? "6자 이상 입력하세요." : null,
                 ),
                 const SizedBox(height: 20),
+
+                // 모드 선택
+                DropdownButtonFormField<String>(
+                  value: _selectedMode,
+                  decoration: const InputDecoration(labelText: "모드 선택"),
+                  items: const [
+                    DropdownMenuItem(value: "휠체어", child: Text("휠체어 모드")),
+                    DropdownMenuItem(value: "보호자", child: Text("보호자 모드")),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedMode = value;
+                    });
+                  },
+                  validator: (value) =>
+                  value == null ? "모드를 선택하세요." : null,
+                ),
+                const SizedBox(height: 10),
+
+                // 상대 이메일 (선택사항)
+                TextFormField(
+                  controller: _counterEmailController,
+                  decoration: const InputDecoration(
+                      labelText: "상대 이메일 (선택 입력 가능)"),
+                ),
+
+                const SizedBox(height: 20),
+
                 ElevatedButton(
                   onPressed: _register,
-                  child: const Text("Sign Up"),
+                  child: const Text("회원가입"),
                 ),
               ],
             ),

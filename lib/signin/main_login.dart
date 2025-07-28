@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wheeltrip/body/home_body.dart';
 import 'package:wheeltrip/signin/button_login.dart';
+import 'package:wheeltrip/signin/firebase_service_login.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -9,9 +10,22 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    return user != null ? const HomeBody() : const LoginScreen();
+    if (user == null) return const LoginScreen();
+
+    return FutureBuilder(
+      future: loadUserData(user.email!), // 이메일로 데이터 불러오기
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return const HomeBody();
+      },
+    );
   }
 }
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

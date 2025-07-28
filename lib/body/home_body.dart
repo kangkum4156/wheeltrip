@@ -1,48 +1,41 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:wheeltrip/data/const_data.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:wheeltrip/mode/select_mode.dart';
-
+import 'package:wheeltrip/signin/main_login.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
-  // Firestore에서 mode 필드 유무 확인
-  Future<bool> _hasModeField(String email) async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(email).get();
-    final data = doc.data();
-    return data != null && data.containsKey('mode');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser!;
-    return FutureBuilder<bool>(
-      future: _hasModeField(user.email!),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final hasMode = snapshot.data ?? false;
-        return hasMode ? const HomeBody() : const SelectMode();
-      },
-    );
+    return const HomeBody();
   }
 }
 
 class HomeBody extends StatelessWidget {
   const HomeBody({super.key});
 
+  Future<void> _logout(BuildContext context) async {
+    await FirebaseAuth.instance.signOut(); // Firebase 로그아웃
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // 뒤로가기 불가
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('홈'),
-        backgroundColor: Colors.blue, // 앱바 색상 (원하면 수정 가능)
+        backgroundColor: Colors.blue,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
+            tooltip: '로그아웃',
+          ),
+        ],
       ),
       body: Center(
         child: Column(
