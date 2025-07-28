@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "268126972165",
+    "project_id": "wheeltrip-bb5f2",
+    "storage_bucket": "wheeltrip-bb5f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:268126972165:android:da086b1fd28f9d367e2f6c",
+        "android_client_info": {
+          "package_name": "com.example.wheeltrip"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCS-Si8sUSBpCc-vodSgbTGrTvcyaNeD8I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
