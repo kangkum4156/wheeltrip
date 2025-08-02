@@ -46,15 +46,15 @@ class _MapViewState extends State<MapView> {
         required String openingHours,
       }) {
         showPlaceBottomSheet(
-          context: context,
-          name: name,
-          address: address,
-          latLng: latLng,
-          phone: phone,
-          openingHours: openingHours,
-          onSaveComplete: () async {
-            await _loadMarkersFromFirestore();
-          }
+            context: context,
+            name: name,
+            address: address,
+            latLng: latLng,
+            phone: phone,
+            openingHours: openingHours,
+            onSaveComplete: () async {
+              await _loadMarkersFromFirestore();
+            }
         );
       }, // map_bottom_sheet.dart 함수
     );
@@ -95,7 +95,6 @@ class _MapViewState extends State<MapView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("휠체어 맵")),
       body: GoogleMap(
         mapType: MapType.normal,
         initialCameraPosition: _initialPosition,
