@@ -13,8 +13,9 @@ class SavePlace extends StatelessWidget {
   final String phone;
   final String time;
   final String address;
+  final String googlePlaceId; // 🔹 추가
   final Function(Marker) onSaveComplete;
-  final bool saveToUserSavedPlaces; // ★ 추가
+  final bool saveToUserSavedPlaces;
 
   const SavePlace({
     super.key,
@@ -26,8 +27,9 @@ class SavePlace extends StatelessWidget {
     required this.phone,
     required this.time,
     required this.address,
+    required this.googlePlaceId, // 🔹 추가
     required this.onSaveComplete,
-    this.saveToUserSavedPlaces = false, // 기본 false
+    this.saveToUserSavedPlaces = false,
   });
 
   Future<void> savePlace(BuildContext context) async {
@@ -42,19 +44,13 @@ class SavePlace extends StatelessWidget {
         return;
       }
 
-      // 1. 장소 존재 여부 확인
-      QuerySnapshot existing = await firestore
-          .collection('places')
-          .where('latitude', isEqualTo: latitude)
-          .where('longitude', isEqualTo: longitude)
-          .limit(1)
-          .get();
+      // 🔹 Google place_id 로 바로 문서 참조
+      DocumentReference placeRef = firestore.collection('places').doc(googlePlaceId);
 
-      DocumentReference placeRef;
-      String placeId;
-
-      if (existing.docs.isEmpty) {
-        placeRef = await firestore.collection('places').add({
+      // 문서가 없으면 생성
+      final docSnap = await placeRef.get();
+      if (!docSnap.exists) {
+        await placeRef.set({
           'latitude': latitude,
           'longitude': longitude,
           'name': name,
@@ -63,13 +59,9 @@ class SavePlace extends StatelessWidget {
           'address': address,
           'avgRating': rating.toDouble(),
         });
-        placeId = placeRef.id;
-      } else {
-        placeRef = existing.docs.first.reference;
-        placeId = placeRef.id;
       }
 
-      // 2. feedback 저장
+      // 피드백 저장
       await placeRef.collection('feedbacks').add({
         'userId': user.uid,
         'userName': user.displayName ?? '익명',
@@ -79,7 +71,7 @@ class SavePlace extends StatelessWidget {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 3. 평균 평점 업데이트
+      // 평균 평점 업데이트
       final feedbacksSnapshot = await placeRef.collection('feedbacks').get();
       if (feedbacksSnapshot.docs.isNotEmpty) {
         final total = feedbacksSnapshot.docs
@@ -89,21 +81,23 @@ class SavePlace extends StatelessWidget {
         await placeRef.update({'avgRating': avg});
       }
 
-      // 4. ★ 사용자의 saved_places에 placeId만 저장
+      // 사용자 saved_places 에 추가
       if (saveToUserSavedPlaces) {
         await firestore
             .collection('users')
             .doc(user_email)
             .collection('saved_places')
-            .doc(placeId)
+            .doc(googlePlaceId)
             .set({
           'createdAt': FieldValue.serverTimestamp(),
+          'latitude': latitude,
+          'longtitude': longitude,
         });
       }
 
-      // 5. 마커 생성 후 콜백
+      // 지도 마커 생성
       final marker = Marker(
-        markerId: MarkerId(placeId),
+        markerId: MarkerId(googlePlaceId),
         position: LatLng(latitude, longitude),
         infoWindow: InfoWindow(
           title: name,

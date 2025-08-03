@@ -9,6 +9,7 @@ void showFeedbackAddSheet({
   required LatLng latLng,
   required String phone,
   required String openingHours,
+  required String googlePlaceId, // 🔹 Google Place API에서 내려온 place_id
   required Future<void> Function() onSaveComplete,
 }) {
   TextEditingController memoController = TextEditingController();
@@ -23,26 +24,40 @@ void showFeedbackAddSheet({
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) => Padding(
-          padding: MediaQuery.of(context).viewInsets.add(const EdgeInsets.all(16.0)),
+          padding: MediaQuery.of(context).viewInsets.add(
+            const EdgeInsets.all(16.0),
+          ),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text('📍 주소: $address'),
                 const SizedBox(height: 4),
                 Text('📞 전화번호: $phone'),
                 const SizedBox(height: 4),
-                Text('🕒 운영 시간:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  '🕒 운영 시간:',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 Text(openingHours),
                 const SizedBox(height: 8),
 
                 const Divider(),
 
                 const SizedBox(height: 8),
-                const Text('💬 메모:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  '💬 메모:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 TextField(
                   controller: memoController,
                   maxLines: 3,
@@ -53,7 +68,10 @@ void showFeedbackAddSheet({
                 ),
                 const SizedBox(height: 16),
 
-                const Text('😀 편의도 평가 :', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  '😀 편의도 평가 :',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -64,7 +82,9 @@ void showFeedbackAddSheet({
                       child: Icon(
                         Icons.face,
                         size: 36,
-                        color: selectedEmotion >= score ? Colors.orange : Colors.grey,
+                        color: selectedEmotion >= score
+                            ? Colors.orange
+                            : Colors.grey,
                       ),
                     );
                   }),
@@ -82,13 +102,14 @@ void showFeedbackAddSheet({
                     phone: phone,
                     address: address,
                     time: openingHours,
-                    saveToUserSavedPlaces: true, // ★ 추가: 저장 시 users/{email}/saved_places에도 등록
+                    googlePlaceId: googlePlaceId, // 🔹 전달
+                    saveToUserSavedPlaces: true,
                     onSaveComplete: (marker) async {
                       await onSaveComplete();
                       Navigator.pop(context);
                     },
                   ),
-                )
+                ),
               ],
             ),
           ),

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:wheeltrip/map/feedback_add.dart'; // 피드백 등록 화면 불러오기
+import 'package:wheeltrip/feedback/feedback_add.dart';
 
 void showFeedbackViewSheet({
   required BuildContext context,
-  required String placeId,
+  required String googlePlaceId, // 🔹 Google API place_id
   required String name,
   required String address,
   required LatLng latLng,
@@ -32,12 +32,19 @@ void showFeedbackViewSheet({
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 장소 기본 정보
-                Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(
+                  name,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
                 Text('📍 주소: $address'),
                 Text('📞 전화번호: $phone'),
                 const SizedBox(height: 4),
-                Text('🕒 운영 시간:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  '🕒 운영 시간:',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 Text(openingHours),
                 const SizedBox(height: 8),
 
@@ -45,12 +52,14 @@ void showFeedbackViewSheet({
                 StreamBuilder<DocumentSnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('places')
-                      .doc(placeId)
+                      .doc(googlePlaceId) // 🔹 Google place_id로 접근
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) return const SizedBox();
-                    final data = snapshot.data!.data() as Map<String, dynamic>?;
-                    final avgRating = (data?['avgRating'] ?? 0).toDouble();
+                    final data =
+                    snapshot.data!.data() as Map<String, dynamic>?;
+                    final avgRating =
+                    (data?['avgRating'] ?? 0).toDouble();
                     return Row(
                       children: [
                         const Icon(Icons.star, color: Colors.orange),
@@ -68,7 +77,7 @@ void showFeedbackViewSheet({
                     icon: const Icon(Icons.add_comment),
                     label: const Text("피드백 추가하기"),
                     onPressed: () {
-                      Navigator.pop(context); // 기존 보기 바텀시트 닫기
+                      Navigator.pop(context);
                       showFeedbackAddSheet(
                         context: context,
                         name: name,
@@ -76,11 +85,11 @@ void showFeedbackViewSheet({
                         latLng: latLng,
                         phone: phone,
                         openingHours: openingHours,
+                        googlePlaceId: googlePlaceId, // 🔹 전달
                         onSaveComplete: () async {
-                          // 저장 후 다시 보기 바텀시트 열기
                           showFeedbackViewSheet(
                             context: context,
-                            placeId: placeId,
+                            googlePlaceId: googlePlaceId, // 🔹 전달
                             name: name,
                             address: address,
                             latLng: latLng,
@@ -94,7 +103,11 @@ void showFeedbackViewSheet({
                 ),
 
                 const SizedBox(height: 10),
-                const Text('📋 등록된 피드백', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text(
+                  '📋 등록된 피드백',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 const SizedBox(height: 8),
 
                 // 등록된 피드백 리스트
@@ -102,24 +115,30 @@ void showFeedbackViewSheet({
                   child: StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('places')
-                        .doc(placeId)
+                        .doc(googlePlaceId) // 🔹 Google place_id로 접근
                         .collection('feedbacks')
                         .orderBy('timestamp', descending: true)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                            child: CircularProgressIndicator());
                       }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text('아직 등록된 피드백이 없습니다.'));
+                      if (!snapshot.hasData ||
+                          snapshot.data!.docs.isEmpty) {
+                        return const Center(
+                            child: Text('아직 등록된 피드백이 없습니다.'));
                       }
                       final feedbacks = snapshot.data!.docs;
                       return ListView.builder(
                         controller: scrollController,
                         itemCount: feedbacks.length,
                         itemBuilder: (context, index) {
-                          final fb = feedbacks[index].data() as Map<String, dynamic>;
-                          final userName = fb['userName'] ?? '익명';
+                          final fb = feedbacks[index].data()
+                          as Map<String, dynamic>;
+                          final userName =
+                              fb['userName'] ?? '익명';
                           final rating = fb['rating'] ?? 0;
                           final comment = fb['comment'] ?? '';
                           final time = fb['timestamp'] != null
@@ -127,21 +146,27 @@ void showFeedbackViewSheet({
                               : null;
 
                           return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            margin:
+                            const EdgeInsets.symmetric(vertical: 6),
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: Colors.blueAccent,
-                                child: Text(userName.isNotEmpty ? userName[0] : '?'),
+                                child: Text(userName.isNotEmpty
+                                    ? userName[0]
+                                    : '?'),
                               ),
                               title: Text('$userName - ${rating}/5'),
                               subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                CrossAxisAlignment.start,
                                 children: [
                                   Text(comment),
                                   if (time != null)
                                     Text(
                                       '${time.year}-${time.month}-${time.day} ${time.hour}:${time.minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey),
                                     ),
                                 ],
                               ),

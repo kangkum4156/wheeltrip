@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 class PlaceFetcher {
   final BuildContext context;
   final String apiKey;
-  final List<String> userSavedPlaceIds; // ★ 로그인 사용자 저장된 장소 목록
+  final List<Map<String, dynamic>> userSavedPlaceIds; // ★ 로그인 사용자 저장된 장소 목록
   final Function({
   required String name,
   required String address,
@@ -107,15 +107,15 @@ class PlaceFetcher {
                 final isSaved = userSavedPlaceIds.contains(placeId);
 
                 return ListTile(
-                  leading: isSaved
-                      ? const Icon(Icons.star, color: Colors.amber)
-                      : const Icon(Icons.place, color: Colors.grey),
-                  title: Text(name),
-                  subtitle: Text(address),
-                  onTap: () {
-                    Navigator.pop(context);
-                    fetchDetailsAndShow(placeId, latLng);
-                  }
+                    leading: isSaved
+                        ? const Icon(Icons.star, color: Colors.amber)
+                        : const Icon(Icons.place, color: Colors.grey),
+                    title: Text(name),
+                    subtitle: Text(address),
+                    onTap: () {
+                      Navigator.pop(context);
+                      fetchDetailsAndShow(placeId, latLng);
+                    }
                 );
               },
             ),

@@ -23,10 +23,10 @@ Future<int> signIn(String email, String password) async {
   }
 }
 
-
 ///email 중복 확인
 Future<bool> isEmailDuplicate(String email) async {
-  final doc = await FirebaseFirestore.instance.collection('users').doc(email).get();
+  final doc =
+  await FirebaseFirestore.instance.collection('users').doc(email).get();
   return doc.exists;
 }
 
@@ -44,7 +44,8 @@ Future<void> sendPasswordResetEmail(String email) async {
 ///아이디(이메일) 찾기 기능
 Future<String?> findEmailByNameAndPhone(String name, String phone) async {
   print("DEBUG: 검색 중 - name: $name, phone: $phone");
-  final snapshot = await FirebaseFirestore.instance
+  final snapshot =
+  await FirebaseFirestore.instance
       .collection('users')
       .where('name', isEqualTo: name)
       .where('phone', isEqualTo: phone)
@@ -57,14 +58,16 @@ Future<String?> findEmailByNameAndPhone(String name, String phone) async {
 
 /// 로그인한 유저 정보 불러오기
 Future<void> loadUserData(String email) async {
-  final snapshot = await FirebaseFirestore.instance
+  final snapshot =
+  await FirebaseFirestore.instance
       .collection('users')
       .where('email', isEqualTo: email)
       .limit(1)
       .get();
 
   if (snapshot.docs.isNotEmpty) {
-    final data = snapshot.docs.first.data();
+    final userDoc = snapshot.docs.first;
+    final data = userDoc.data();
 
     user_email = data['email'];
     user_name = data['name'];
@@ -72,5 +75,15 @@ Future<void> loadUserData(String email) async {
     user_mode = data['mode'];
     user_counterEmail = data['counter_email'];
     user_location = data['location'];
+
+    final savedPlacesSnapshot =
+    await userDoc.reference.collection('saved_places').get();
+    final List<Map<String, dynamic>> savedPlaces =
+    savedPlacesSnapshot.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList();
+
+    user_savedPlaces = savedPlaces;
+    print('저장 개수 : ${savedPlaces.length}');
   }
 }
