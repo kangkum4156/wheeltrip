@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
-/// 주변 장소 검색 및 상세정보 표시 관련 함수들
+/// google place API와 통신하여 주변 장소 검색 및 상세정보 표시 관련 함수들
 class PlaceFetcher {
   final BuildContext context;
   final String apiKey;
+  final List<String> userSavedPlaceIds; // ★ 로그인 사용자 저장된 장소 목록
   final Function({
   required String name,
   required String address,
   required LatLng latLng,
   required String phone,
   required String openingHours,
+  required String placeId,
   }) showBottomSheet;
 
   bool _isLoading = false;
@@ -20,6 +22,7 @@ class PlaceFetcher {
   PlaceFetcher({
     required this.context,
     required this.apiKey,
+    required this.userSavedPlaceIds,
     required this.showBottomSheet,
   });
 
@@ -31,7 +34,7 @@ class PlaceFetcher {
       final nearbyUrl = Uri.parse(
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
             '?location=${latLng.latitude},${latLng.longitude}'
-            '&radius=10'
+            '&radius=30' // 반경(m)
             '&key=$apiKey',
       );
 
@@ -71,6 +74,7 @@ class PlaceFetcher {
         latLng: latLng,
         phone: result['formatted_phone_number'] ?? '전화번호 없음',
         openingHours: result['opening_hours']?['weekday_text']?.join('\n') ?? '운영 시간 정보 없음',
+        placeId: placeId,
       );
     } else {
       debugPrint('상세정보 실패: ${response.statusCode}');
@@ -92,14 +96,21 @@ class PlaceFetcher {
           itemCount: places.length,
           itemBuilder: (context, index) {
             final place = places[index];
+            final placeId = place['place_id'] ?? '';
             final name = place['name'] ?? '이름 없음';
             final address = place['vicinity'] ?? '주소 없음';
+
+            final isSaved = userSavedPlaceIds.contains(placeId); // ★ 저장 여부 확인
+
             return ListTile(
+              leading: isSaved
+                  ? const Icon(Icons.star, color: Colors.amber)
+                  : const Icon(Icons.place, color: Colors.grey),
               title: Text(name),
               subtitle: Text(address),
               onTap: () {
                 Navigator.pop(context);
-                fetchDetailsAndShow(place['place_id'], latLng);
+                fetchDetailsAndShow(placeId, latLng);
               },
             );
           },
