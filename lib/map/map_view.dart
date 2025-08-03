@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wheeltrip/data/const_data.dart'; // user_email 사용
 import 'package:wheeltrip/map/map_load.dart'; // loadMarkersFromFirestore 함수
 import 'package:wheeltrip/map/map_fetch.dart'; // PlaceFetcher 클래스
@@ -19,8 +18,7 @@ class _MapViewState extends State<MapView> {
   final Completer<GoogleMapController> _controller = Completer();
   Set<Marker> _markers = {};
   late PlaceFetcher _placeFetcher;
-
-  List<String> _userSavedPlaceIds = []; // ★ 로그인 사용자의 저장된 장소 목록
+  final List<Map<String, dynamic>> _userSavedPlaceIds = user_savedPlaces; // ★ 로그인 사용자의 저장된 장소 목록
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(35.8880, 128.6106),
@@ -33,28 +31,8 @@ class _MapViewState extends State<MapView> {
   @override
   void initState() {
     super.initState();
-    _loadUserSavedPlaces().then((_) {
-      _requestLocationPermission();
-      _loadMarkersFromFirestore();
-    });
-  }
-
-  /// Firestore에서 로그인된 사용자의 saved_places 불러오기
-  Future<void> _loadUserSavedPlaces() async {
-    try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user_email) // const_data.dart의 로그인 사용자 email
-              .collection('saved_places')
-              .get();
-
-      setState(() {
-        _userSavedPlaceIds = snapshot.docs.map((doc) => doc.id).toList();
-      });
-    } catch (e) {
-      debugPrint("저장된 장소 불러오기 실패: $e");
-    }
+    _requestLocationPermission();
+    _loadMarkersFromFirestore();
   }
 
   Future<void> _requestLocationPermission() async{
@@ -94,6 +72,7 @@ class _MapViewState extends State<MapView> {
   Future<void> _loadMarkersFromFirestore() async {
     try {
       final markers = await loadMarkersFromFirestore(
+        user_savedPlaces,
         (LatLng tapped) { /// 마커 클릭
           _placeFetcher.fetchNearbyPlaces(tapped);
         },

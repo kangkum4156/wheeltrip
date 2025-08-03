@@ -7,3 +7,4 @@ String? user_phone;
 String? user_mode;
 String? user_counterEmail;
 dynamic user_location; // null 또는 좌표
+List<Map<String, dynamic>> user_savedPlaces = [];

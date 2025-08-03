@@ -98,6 +98,8 @@ class SavePlace extends StatelessWidget {
             .doc(placeId)
             .set({
           'createdAt': FieldValue.serverTimestamp(),
+          'latitude': latitude,
+          'longtitude': longitude,
         });
       }
 
