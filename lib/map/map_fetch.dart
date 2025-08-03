@@ -86,35 +86,41 @@ class PlaceFetcher {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: places.length,
-          itemBuilder: (context, index) {
-            final place = places[index];
-            final placeId = place['place_id'] ?? '';
-            final name = place['name'] ?? '이름 없음';
-            final address = place['vicinity'] ?? '주소 없음';
+      builder: (_) => DraggableScrollableSheet( // UX용 Scroller
+        expand: false,
+        builder: (context, scrollController) {
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: places.length,
+              itemBuilder: (context, index) {
+                final place = places[index];
+                final placeId = place['place_id'] ?? '';
+                final name = place['name'] ?? '이름 없음';
+                final address = place['vicinity'] ?? '주소 없음';
 
-            final isSaved = userSavedPlaceIds.contains(placeId); // ★ 저장 여부 확인
+                final isSaved = userSavedPlaceIds.contains(placeId);
 
-            return ListTile(
-              leading: isSaved
-                  ? const Icon(Icons.star, color: Colors.amber)
-                  : const Icon(Icons.place, color: Colors.grey),
-              title: Text(name),
-              subtitle: Text(address),
-              onTap: () {
-                Navigator.pop(context);
-                fetchDetailsAndShow(placeId, latLng);
+                return ListTile(
+                  leading: isSaved
+                      ? const Icon(Icons.star, color: Colors.amber)
+                      : const Icon(Icons.place, color: Colors.grey),
+                  title: Text(name),
+                  subtitle: Text(address),
+                  onTap: () {
+                    Navigator.pop(context);
+                    fetchDetailsAndShow(placeId, latLng);
+                  },
+                );
               },
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }

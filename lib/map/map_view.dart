@@ -4,9 +4,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wheeltrip/data/const_data.dart'; // user_email 사용
-import 'package:wheeltrip/map/map_load.dart';        // loadMarkersFromFirestore 함수
-import 'package:wheeltrip/map/map_fetch.dart';       // PlaceFetcher 클래스
-import 'package:wheeltrip/map/feedback_view.dart';   // 저장된 피드백 보기
+import 'package:wheeltrip/map/map_load.dart'; // loadMarkersFromFirestore 함수
+import 'package:wheeltrip/map/map_fetch.dart'; // PlaceFetcher 클래스
+import 'package:wheeltrip/map/feedback_view.dart'; // 저장된 피드백 보기
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -24,10 +24,11 @@ class _MapViewState extends State<MapView> {
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(35.8880, 128.6106),
-    zoom: 15.0,
+    zoom: 16.0,
   );
 
-  final String _apiKey = 'AIzaSyDWq1JmQHucXOFIbETBIaWh1wb3jis5ds8'; // Google Maps API Key
+  final String _apiKey =
+      'AIzaSyDWq1JmQHucXOFIbETBIaWh1wb3jis5ds8'; // Google Maps API Key
 
   @override
   void initState() {
@@ -41,11 +42,12 @@ class _MapViewState extends State<MapView> {
   /// Firestore에서 로그인된 사용자의 saved_places 불러오기
   Future<void> _loadUserSavedPlaces() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user_email) // const_data.dart의 로그인 사용자 email
-          .collection('saved_places')
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user_email) // const_data.dart의 로그인 사용자 email
+              .collection('saved_places')
+              .get();
 
       setState(() {
         _userSavedPlaceIds = snapshot.docs.map((doc) => doc.id).toList();
@@ -83,36 +85,26 @@ class _MapViewState extends State<MapView> {
     );
 
     if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('위치 권한이 필요합니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('위치 권한이 필요합니다.')));
     }
   }
 
   Future<void> _loadMarkersFromFirestore() async {
     try {
-      final markers = await loadMarkersFromFirestore((data) {
-        showFeedbackViewSheet(
-          context: context,
-          placeId: data['id'], // Firestore 문서 ID
-          name: data['name'] ?? '이름 없음',
-          address: data['address'] ?? '',
-          latLng: LatLng(
-            data['latitude'].toDouble(),
-            data['longitude'].toDouble(),
-          ),
-          phone: data['phone'] ?? '',
-          openingHours: data['time'] ?? '',
-        );
-      });
-
+      final markers = await loadMarkersFromFirestore(
+        (LatLng tapped) { /// 마커 클릭
+          _placeFetcher.fetchNearbyPlaces(tapped);
+        },
+      );
       setState(() {
         _markers = markers;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('지도 마커 불러오기 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('지도 마커 불러오기 실패: $e')));
     }
   }
 
