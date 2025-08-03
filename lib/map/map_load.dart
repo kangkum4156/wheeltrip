@@ -20,7 +20,7 @@ Future<Set<Marker>> loadMarkersFromFirestore(
       position: position,
       onTap: () {
         onLatLngTap(position); // 👈 마커 누르면 지도 탭처럼 처리
-      },
+      }
     );
   }).whereType<Marker>().toSet();
 }

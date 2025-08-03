@@ -115,7 +115,7 @@ class PlaceFetcher {
                   onTap: () {
                     Navigator.pop(context);
                     fetchDetailsAndShow(placeId, latLng);
-                  },
+                  }
                 );
               },
             ),

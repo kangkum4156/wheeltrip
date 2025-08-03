@@ -57,7 +57,7 @@ class _MapViewState extends State<MapView> {
     }
   }
 
-  Future<void> _requestLocationPermission() async {
+  Future<void> _requestLocationPermission() async{
     var status = await Permission.location.request();
 
     _placeFetcher = PlaceFetcher(
