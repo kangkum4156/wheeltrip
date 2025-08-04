@@ -32,7 +32,7 @@ class _MapViewState extends State<MapView> {
   void initState() {
     super.initState();
     _requestLocationPermission();
-    _loadMarkersFromFirestore();
+    _loadMarkers();
   }
 
   Future<void> _requestLocationPermission() async{
@@ -58,6 +58,7 @@ class _MapViewState extends State<MapView> {
           latLng: latLng,
           phone: phone,
           openingHours: openingHours,
+          onMarkerReset: _loadMarkers,
         );
       },
     );
@@ -69,9 +70,9 @@ class _MapViewState extends State<MapView> {
     }
   }
 
-  Future<void> _loadMarkersFromFirestore() async {
+  Future<void> _loadMarkers() async {
     try {
-      final markers = await loadMarkersFromFirestore(
+      final markers = await loadMarkersFromGlobalVariable(
         user_savedPlaces,
             (LatLng tapped) { /// 마커 클릭
           _placeFetcher.fetchNearbyPlaces(tapped);

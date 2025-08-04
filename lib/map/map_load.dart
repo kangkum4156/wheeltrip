@@ -1,12 +1,12 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-Future<Set<Marker>> loadMarkersFromFirestore(
+Future<Set<Marker>> loadMarkersFromGlobalVariable(
     List<Map<String, dynamic>> savedPlaces,
     Function(LatLng) onLatLngTap,
     ) async {
   return savedPlaces.map((place) {
     final lat = place['latitude'];
-    final lng = place['longtitude'];
+    final lng = place['longitude'];
 
     if (lat == null || lng == null) return null;
 
