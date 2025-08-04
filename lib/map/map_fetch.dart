@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 class PlaceFetcher {
   final BuildContext context;
   final String apiKey;
-  final List<Map<String, dynamic>> userSavedPlaceIds; // ★ 로그인 사용자 저장된 장소 목록
+  final List<Map<String, dynamic>> userSavedPlaces; // ★ 로그인 사용자 저장된 장소 목록
   final Function({
   required String name,
   required String address,
@@ -22,7 +22,7 @@ class PlaceFetcher {
   PlaceFetcher({
     required this.context,
     required this.apiKey,
-    required this.userSavedPlaceIds,
+    required this.userSavedPlaces,
     required this.showBottomSheet,
   });
 
@@ -104,7 +104,7 @@ class PlaceFetcher {
                 final name = place['name'] ?? '이름 없음';
                 final address = place['vicinity'] ?? '주소 없음';
 
-                final isSaved = userSavedPlaceIds.contains(placeId);
+                final isSaved = userSavedPlaces.any((place) => place['id'] == placeId);
 
                 return ListTile(
                     leading: isSaved

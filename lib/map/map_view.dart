@@ -41,7 +41,7 @@ class _MapViewState extends State<MapView> {
     _placeFetcher = PlaceFetcher(
       context: context,
       apiKey: _apiKey,
-      userSavedPlaceIds: _userSavedPlaceIds, // ★ 저장된 장소 목록 전달
+      userSavedPlaces: _userSavedPlaceIds, // ★ 저장된 장소 목록 전달
       showBottomSheet: ({
         required String name,
         required String address,
