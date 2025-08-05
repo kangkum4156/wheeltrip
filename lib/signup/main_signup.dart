@@ -64,14 +64,15 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text.trim(),
       );
 
-      // Firestore 저장 데이터
+      // ✅ Firestore에 저장할 데이터 (배열로 무조건 저장)
       final userData = {
         "name": _nameController.text.trim(),
         "phone": _phoneController.text.trim(),
         "email": email,
         "mode": _selectedMode,
-        "counter_email": counterEmail.isNotEmpty ? counterEmail : null,
-        "location": null
+        "counter_email": counterEmail.isNotEmpty ? [counterEmail] : [],
+        "location": null,
+        "token": null,
       };
 
       // 내 정보 저장
@@ -80,7 +81,7 @@ class _SignupScreenState extends State<SignupScreen> {
           .doc(userCredential.user!.email)
           .set(userData);
 
-      // 상대 이메일이 있다면 상대의 Firestore에도 나를 counter_email로 등록
+      // ✅ 상대 유저 문서에도 나를 배열로 추가 (arrayUnion)
       if (counterEmail.isNotEmpty) {
         final counterUserDoc = await FirebaseFirestore.instance
             .collection("users")
@@ -93,7 +94,9 @@ class _SignupScreenState extends State<SignupScreen> {
           await FirebaseFirestore.instance
               .collection("users")
               .doc(counterDocId)
-              .update({"counter_email": email});
+              .update({
+            "counter_email": FieldValue.arrayUnion([email])
+          });
         }
       }
 

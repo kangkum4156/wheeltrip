@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wheeltrip/signin/main_login.dart';
 import 'package:wheeltrip/map/map_view.dart';
+import 'package:wheeltrip/alarm/emergency_button.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -38,7 +39,13 @@ class HomeBody extends StatelessWidget {
           ),
         ],
       ),
-      body: const MapView(),
+      body: Stack(
+        children: [
+          const MapView(), // 기본 지도 뷰
+          const EmergencyButton(),
+        ],
+      ),
     );
   }
 }
+

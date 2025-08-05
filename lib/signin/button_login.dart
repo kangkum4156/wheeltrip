@@ -63,18 +63,22 @@ class LoginForm extends StatelessWidget {
           const SizedBox(height: 10),
           ElevatedButton(
             onPressed: () async {
-              final result = await signIn(
-                emailController.text.trim(),
-                passwordController.text.trim(),
-              );
+              final email = emailController.text.trim();
+              final password = passwordController.text.trim();
+
+              print('🔍 로그인 시도 - 이메일: $email / 비밀번호: $password');
+
+              final result = await signIn(email, password);
               switch (result) {
                 case 0:
+                  print("❌ 로그인 실패");
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("로그인 실패. 이메일과 비밀번호를 확인하세요.")),
                   );
                   break;
                 case 1:
-                  user_email = emailController.text;
+                  print("✅ 로그인 성공");
+                  user_email = email;
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => const HomeBody()),
