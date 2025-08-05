@@ -83,15 +83,23 @@ class SavePlace extends StatelessWidget {
 
       // 사용자 saved_places 에 추가
       if (saveToUserSavedPlaces) {
+        final time=FieldValue.serverTimestamp();
         await firestore
             .collection('users')
             .doc(user_email)
             .collection('saved_places')
             .doc(googlePlaceId)
             .set({
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt': time,
           'latitude': latitude,
-          'longtitude': longitude,
+          'longitude': longitude,
+        });
+
+        user_savedPlaces.add({
+          'id': googlePlaceId,
+          'createdAt': time,
+          'latitude': latitude,
+          'longitude': longitude,
         });
       }
 

@@ -13,6 +13,7 @@ void showFeedbackViewSheet({
   required LatLng latLng,
   required String phone,
   required String openingHours,
+  required Future<void> Function() onMarkerReset,
 }) {
   final user = FirebaseAuth.instance.currentUser;
 
@@ -113,6 +114,7 @@ void showFeedbackViewSheet({
                                 openingHours: openingHours,
                                 googlePlaceId: googlePlaceId,
                                 onSaveComplete: () async {
+                                  await onMarkerReset();
                                   showFeedbackViewSheet(
                                     context: context,
                                     googlePlaceId: googlePlaceId,
@@ -121,6 +123,7 @@ void showFeedbackViewSheet({
                                     latLng: latLng,
                                     phone: phone,
                                     openingHours: openingHours,
+                                    onMarkerReset: onMarkerReset,
                                   );
                                 },
                               );
