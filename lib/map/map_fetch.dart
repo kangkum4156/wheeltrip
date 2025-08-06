@@ -34,7 +34,7 @@ class PlaceFetcher {
       final nearbyUrl = Uri.parse(
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
             '?location=${latLng.latitude},${latLng.longitude}'
-            '&radius=30' // 반경(m)
+            '&radius=20' // 반경(m)
             '&key=$apiKey',
       );
 

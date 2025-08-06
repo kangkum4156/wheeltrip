@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wheeltrip/feedback/feedback_add.dart';
-import 'package:wheeltrip/feedback/feedback_edit.dart'; // 수정 화면
+import 'package:wheeltrip/feedback/feedback_edit.dart';
+import 'package:wheeltrip/feedback/feedback_option_button.dart';
 
 void showFeedbackViewSheet({
   required BuildContext context,
-  required String googlePlaceId, // 🔹 Google API place_id
+  required String googlePlaceId,
   required String name,
   required String address,
   required LatLng latLng,
@@ -36,17 +37,20 @@ void showFeedbackViewSheet({
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 장소 기본 정보
-                Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                /// 장소 기본 정보
+                Text(name,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text('📍 주소: $address'),
                 Text('📞 전화번호: $phone'),
                 const SizedBox(height: 4),
-                Text('🕒 운영 시간:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('🕒 운영 시간:',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 Text(openingHours),
                 const SizedBox(height: 8),
 
-                // 평균 평점
+                /// 평균 평점
                 StreamBuilder<DocumentSnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('places')
@@ -54,7 +58,8 @@ void showFeedbackViewSheet({
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) return const SizedBox();
-                    final data = snapshot.data!.data() as Map<String, dynamic>?;
+                    final data =
+                    snapshot.data!.data() as Map<String, dynamic>?;
                     final avgRating = (data?['avgRating'] ?? 0).toDouble();
                     return Row(
                       children: [
@@ -67,7 +72,7 @@ void showFeedbackViewSheet({
 
                 const Divider(height: 20),
 
-                // "피드백 추가/수정" 버튼
+                /// 피드백 추가/수정 버튼
                 if (user != null)
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
@@ -93,7 +98,8 @@ void showFeedbackViewSheet({
                                 context: context,
                                 googlePlaceId: googlePlaceId,
                                 feedbackId: feedbackDoc.id,
-                                existingData: feedbackDoc.data() as Map<String, dynamic>,
+                                existingData: feedbackDoc.data()
+                                as Map<String, dynamic>,
                               );
                             },
                           ),
@@ -135,10 +141,12 @@ void showFeedbackViewSheet({
                   ),
 
                 const SizedBox(height: 10),
-                const Text('📋 등록된 피드백', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text('📋 등록된 피드백',
+                    style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 8),
 
-                // 등록된 피드백 리스트
+                /// 피드백 리스트
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
@@ -148,46 +156,88 @@ void showFeedbackViewSheet({
                         .orderBy('timestamp', descending: true)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                            child: CircularProgressIndicator());
                       }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text('아직 등록된 피드백이 없습니다.'));
+                      if (!snapshot.hasData ||
+                          snapshot.data!.docs.isEmpty) {
+                        return const Center(
+                            child: Text('아직 등록된 피드백이 없습니다.'));
                       }
 
                       final feedbacks = snapshot.data!.docs;
-                      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                      final currentUserId =
+                          FirebaseAuth.instance.currentUser?.uid;
 
                       return ListView.builder(
                         controller: scrollController,
                         itemCount: feedbacks.length,
                         itemBuilder: (context, index) {
-                          final fb = feedbacks[index].data() as Map<String, dynamic>;
-                          final userName = fb['userName'] ?? '익명';
+                          final fb = feedbacks[index].data()
+                          as Map<String, dynamic>;
                           final rating = fb['rating'] ?? 0;
                           final comment = fb['comment'] ?? '';
+                          final features =
+                          List<String>.from(fb['features'] ?? []);
                           final time = fb['timestamp'] != null
                               ? (fb['timestamp'] as Timestamp).toDate()
                               : null;
-                          final isMyFeedback = fb['userId'] == currentUserId;
+                          final isMyFeedback =
+                              fb['userId'] == currentUserId;
 
                           return Card(
-                            color: isMyFeedback ? Colors.yellow[200] : null, // 🔹 내 피드백이면 형광 노랑
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blueAccent,
-                                child: Text(userName.isNotEmpty ? userName[0] : '?'),
-                              ),
-                              title: Text('$userName - ${rating}/5'),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            color: isMyFeedback
+                                ? Colors.yellow[200]
+                                : null,
+                            margin:
+                            const EdgeInsets.symmetric(vertical: 6),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment:
+                                CrossAxisAlignment.start,
                                 children: [
-                                  Text(comment),
+                                  /// 1행: 평점 + 메모
+                                  Row(
+                                    children: [
+                                      Icon(Icons.star,
+                                          color: Colors.orange,
+                                          size: 18),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "$rating/5",
+                                        style: const TextStyle(
+                                            fontWeight:
+                                            FontWeight.bold),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(comment)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+
+                                  /// 2행: 선택된 features 버튼들 (보기 전용)
+                                  if (features.isNotEmpty)
+                                    FeedbackOptionButton(
+                                      selectedFeatures: features,
+                                      isEditable: false,
+                                      onFeaturesChanged: (_) {},
+                                    ),
+                                  if (features.isNotEmpty)
+                                    const SizedBox(height: 4),
+
+                                  /// 3행: 날짜 (우측 하단)
                                   if (time != null)
-                                    Text(
-                                      '${time.year}-${time.month}-${time.day} ${time.hour}:${time.minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: Text(
+                                        '${time.year}-${time.month}-${time.day} ${time.hour}:${time.minute.toString().padLeft(2, '0')}',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey),
+                                      ),
                                     ),
                                 ],
                               ),
@@ -199,8 +249,7 @@ void showFeedbackViewSheet({
                   ),
                 ),
 
-
-                // 닫기 버튼
+                /// 닫기 버튼
                 Center(
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),

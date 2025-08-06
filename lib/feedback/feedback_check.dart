@@ -3,7 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:wheeltrip/feedback/feedback_add.dart';
-import 'package:wheeltrip/feedback/feedback_edit.dart'; // 수정 모드 화면 만들면 여기에
+import 'package:wheeltrip/feedback/feedback_edit.dart';
 
 /// 한 장소에 대해 현재 로그인한 사용자가 이미 피드백을 작성했는지 체크하고,
 /// 작성했으면 수정 화면, 아니면 새 작성 화면을 띄움
@@ -40,7 +40,7 @@ Future<void> checkAndShowFeedbackForm({
       final feedbackId = existingFeedback.id;
       final feedbackData = existingFeedback.data();
 
-      // 수정 시트 열기
+      // 수정 시트 열기 (features 데이터도 함께 전달됨)
       showEditFeedbackSheet(
         context: context,
         googlePlaceId: placeId,
@@ -58,8 +58,8 @@ Future<void> checkAndShowFeedbackForm({
         openingHours: openingHours,
         googlePlaceId: placeId,
         onSaveComplete: () async {
-          // 저장 후 다시 보기
-          Navigator.pop(context); // 기존 보기 닫기
+          // 저장 후 기존 보기 닫기
+          Navigator.pop(context);
         },
       );
     }
