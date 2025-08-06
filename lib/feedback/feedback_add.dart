@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:wheeltrip/map/map_to_firebase_save.dart';
+import 'package:wheeltrip/feedback/feedback_option_button.dart';
 
 void showFeedbackAddSheet({
   required BuildContext context,
@@ -9,11 +10,14 @@ void showFeedbackAddSheet({
   required LatLng latLng,
   required String phone,
   required String openingHours,
-  required String googlePlaceId, // 🔹 Google Place API에서 내려온 place_id
+  required String googlePlaceId,
   required Future<void> Function() onSaveComplete,
 }) {
   TextEditingController memoController = TextEditingController();
-  int selectedEmotion = 0;
+  int selectedEmotion = 5;
+
+  // 선택된 시설 옵션 저장
+  final List<String> selectedFeatures = [];
 
   showModalBottomSheet(
     context: context,
@@ -89,9 +93,28 @@ void showFeedbackAddSheet({
                     );
                   }),
                 ),
+                const SizedBox(height: 16),
+
+                const Text(
+                  '🏷 시설 정보:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+
+                // 시설 옵션 버튼 (클릭 가능)
+                FeedbackOptionButton(
+                  selectedFeatures: selectedFeatures,
+                  isEditable: true,
+                  onFeaturesChanged: (features) {
+                    setState(() {
+                      selectedFeatures.clear();
+                      selectedFeatures.addAll(features);
+                    });
+                  },
+                ),
+
                 const SizedBox(height: 24),
 
-                // 저장 버튼
                 Center(
                   child: SavePlace(
                     latitude: latLng.latitude,
@@ -102,8 +125,11 @@ void showFeedbackAddSheet({
                     phone: phone,
                     address: address,
                     time: openingHours,
-                    googlePlaceId: googlePlaceId, // 🔹 전달
+                    googlePlaceId: googlePlaceId,
                     saveToUserSavedPlaces: true,
+                    extraData: selectedFeatures.isNotEmpty
+                        ? {"features": selectedFeatures}
+                        : {},
                     onSaveComplete: (marker) async {
                       await onSaveComplete();
                       Navigator.pop(context);

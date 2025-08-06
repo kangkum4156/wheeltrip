@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:wheeltrip/data/const_data.dart'; // user_email 사용
+import 'package:wheeltrip/data/const_data.dart'; // user_email, user_savedPlaces
 
 class SavePlace extends StatelessWidget {
   final double latitude;
@@ -13,7 +13,8 @@ class SavePlace extends StatelessWidget {
   final String phone;
   final String time;
   final String address;
-  final String googlePlaceId; // 🔹 추가
+  final String googlePlaceId;
+  final Map<String, dynamic>? extraData; // 🔹 features 등 추가 데이터
   final Function(Marker) onSaveComplete;
   final bool saveToUserSavedPlaces;
 
@@ -27,8 +28,9 @@ class SavePlace extends StatelessWidget {
     required this.phone,
     required this.time,
     required this.address,
-    required this.googlePlaceId, // 🔹 추가
+    required this.googlePlaceId,
     required this.onSaveComplete,
+    this.extraData,
     this.saveToUserSavedPlaces = false,
   });
 
@@ -44,8 +46,9 @@ class SavePlace extends StatelessWidget {
         return;
       }
 
-      // 🔹 Google place_id 로 바로 문서 참조
-      DocumentReference placeRef = firestore.collection('places').doc(googlePlaceId);
+      // 🔹 Google place_id 로 문서 참조
+      DocumentReference placeRef =
+      firestore.collection('places').doc(googlePlaceId);
 
       // 문서가 없으면 생성
       final docSnap = await placeRef.get();
@@ -61,15 +64,23 @@ class SavePlace extends StatelessWidget {
         });
       }
 
-      // 피드백 저장
-      await placeRef.collection('feedbacks').add({
+      // 피드백 데이터
+      final Map<String, Object?> feedbackData = {
         'userId': user.uid,
         'userName': user.displayName ?? '익명',
         'rating': rating,
         'comment': comment,
         'photoUrl': '',
         'timestamp': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // 🔹 extraData(features 등)가 있으면 합침
+      if (extraData != null && extraData!.isNotEmpty) {
+        feedbackData.addAll(extraData!);
+      }
+
+      // 피드백 저장
+      await placeRef.collection('feedbacks').add(feedbackData);
 
       // 평균 평점 업데이트
       final feedbacksSnapshot = await placeRef.collection('feedbacks').get();
@@ -83,21 +94,21 @@ class SavePlace extends StatelessWidget {
 
       // 사용자 saved_places 에 추가
       if (saveToUserSavedPlaces) {
-        final time=FieldValue.serverTimestamp();
+        final createdAt = FieldValue.serverTimestamp();
         await firestore
             .collection('users')
             .doc(user_email)
             .collection('saved_places')
             .doc(googlePlaceId)
             .set({
-          'createdAt': time,
+          'createdAt': createdAt,
           'latitude': latitude,
           'longitude': longitude,
         });
 
         user_savedPlaces.add({
           'id': googlePlaceId,
-          'createdAt': time,
+          'createdAt': createdAt,
           'latitude': latitude,
           'longitude': longitude,
         });
@@ -120,7 +131,6 @@ class SavePlace extends StatelessWidget {
       );
 
       Navigator.pop(context);
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('저장 실패: $e')),
