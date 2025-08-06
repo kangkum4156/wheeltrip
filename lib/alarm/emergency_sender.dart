@@ -6,7 +6,7 @@ import 'dart:convert';
 class EmergencySender {
   // 🔗 Functions에 배포된 URL (수정해서 넣으세요)
   static const String functionUrl = 'https://sendemergencyalert-agrnrnefua-du.a.run.app';
-
+////
   static Future<String> sendEmergencyAlert(BuildContext context) async {
     try {
       final auth = FirebaseAuth.instance;
