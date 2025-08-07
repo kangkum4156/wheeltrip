@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
 /// Example:
@@ -47,6 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '268126972165',
     projectId: 'wheeltrip-bb5f2',
     authDomain: 'wheeltrip-bb5f2.firebaseapp.com',
+    databaseURL: 'https://wheeltrip-bb5f2-default-rtdb.firebaseio.com',
     storageBucket: 'wheeltrip-bb5f2.firebasestorage.app',
     measurementId: 'G-WRYENT8ZDS',
   );
@@ -56,6 +56,7 @@ class DefaultFirebaseOptions {
     appId: '1:268126972165:android:da086b1fd28f9d367e2f6c',
     messagingSenderId: '268126972165',
     projectId: 'wheeltrip-bb5f2',
+    databaseURL: 'https://wheeltrip-bb5f2-default-rtdb.firebaseio.com',
     storageBucket: 'wheeltrip-bb5f2.firebasestorage.app',
   );
 
@@ -64,6 +65,7 @@ class DefaultFirebaseOptions {
     appId: '1:268126972165:ios:dcf07216cb0f51dc7e2f6c',
     messagingSenderId: '268126972165',
     projectId: 'wheeltrip-bb5f2',
+    databaseURL: 'https://wheeltrip-bb5f2-default-rtdb.firebaseio.com',
     storageBucket: 'wheeltrip-bb5f2.firebasestorage.app',
     iosBundleId: 'com.example.wheeltrip',
   );
@@ -73,6 +75,7 @@ class DefaultFirebaseOptions {
     appId: '1:268126972165:ios:dcf07216cb0f51dc7e2f6c',
     messagingSenderId: '268126972165',
     projectId: 'wheeltrip-bb5f2',
+    databaseURL: 'https://wheeltrip-bb5f2-default-rtdb.firebaseio.com',
     storageBucket: 'wheeltrip-bb5f2.firebasestorage.app',
     iosBundleId: 'com.example.wheeltrip',
   );
@@ -83,7 +86,9 @@ class DefaultFirebaseOptions {
     messagingSenderId: '268126972165',
     projectId: 'wheeltrip-bb5f2',
     authDomain: 'wheeltrip-bb5f2.firebaseapp.com',
+    databaseURL: 'https://wheeltrip-bb5f2-default-rtdb.firebaseio.com',
     storageBucket: 'wheeltrip-bb5f2.firebasestorage.app',
     measurementId: 'G-9RVLECXFHR',
   );
+
 }
