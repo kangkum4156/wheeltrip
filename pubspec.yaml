@@ -51,6 +51,9 @@ dependencies:
   xml: ^6.5.0
   geolocator: ^14.0.2
   shared_preferences: ^2.5.3
+  firebase_database: ^11.3.10
+
+
 
 dev_dependencies:
   flutter_test:

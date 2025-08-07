@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wheeltrip/data/const_data.dart'; // user_email 사용
-import 'package:wheeltrip/map/map_load.dart'; // loadMarkersFromFirestore 함수
-import 'package:wheeltrip/map/map_fetch.dart'; // PlaceFetcher 클래스
+import 'package:wheeltrip/map/map_load.dart'; // loadMarkersFromGlobalVariable
+import 'package:wheeltrip/map/map_fetch.dart'; // PlaceFetcher
 import 'package:wheeltrip/feedback/feedback_view.dart'; // 저장된 피드백 보기
+import 'package:wheeltrip/realtime_location/load_marker_with_name.dart'; // ✅ 새로운 위젯으로 교체
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -16,12 +17,12 @@ class MapView extends StatefulWidget {
 
 class _MapViewState extends State<MapView> {
   final Completer<GoogleMapController> _controller = Completer();
-  Set<Marker> _markers = {};
+  Set<Marker> _staticMarkers = {};
   late PlaceFetcher _placeFetcher;
-  final List<Map<String, dynamic>> _userSavedPlaceIds = user_savedPlaces; // ★ 로그인 사용자의 저장된 장소 목록
+  final List<Map<String, dynamic>> _userSavedPlaceIds = user_savedPlaces;
 
   static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(35.8880, 128.6106),
+    target: LatLng(35.8880, 128.6106), // 대구 기준 위치
     zoom: 16.0,
   );
 
@@ -32,16 +33,16 @@ class _MapViewState extends State<MapView> {
   void initState() {
     super.initState();
     _requestLocationPermission();
-    _loadMarkers();
+    _loadStaticMarkers();
   }
 
-  Future<void> _requestLocationPermission() async{
+  Future<void> _requestLocationPermission() async {
     var status = await Permission.location.request();
 
     _placeFetcher = PlaceFetcher(
       context: context,
       apiKey: _apiKey,
-      userSavedPlaces: _userSavedPlaceIds, // ★ 저장된 장소 목록 전달
+      userSavedPlaces: _userSavedPlaceIds,
       showBottomSheet: ({
         required String name,
         required String address,
@@ -58,49 +59,50 @@ class _MapViewState extends State<MapView> {
           latLng: latLng,
           phone: phone,
           openingHours: openingHours,
-          onMarkerReset: _loadMarkers,
+          onMarkerReset: _loadStaticMarkers,
         );
       },
     );
 
     if (!status.isGranted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('위치 권한이 필요합니다.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('위치 권한이 필요합니다.')));
     }
   }
 
-  Future<void> _loadMarkers() async {
+  Future<void> _loadStaticMarkers() async {
     try {
       final markers = await loadMarkersFromGlobalVariable(
-        user_savedPlaces,
-            (LatLng tapped) { /// 마커 클릭
+        _userSavedPlaceIds,
+            (LatLng tapped) {
           _placeFetcher.fetchNearbyPlaces(tapped);
         },
       );
+
       setState(() {
-        _markers = markers;
+        _staticMarkers = markers;
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('지도 마커 불러오기 실패: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('정적 마커 로딩 실패: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GoogleMap(
-        mapType: MapType.normal,
-        initialCameraPosition: _initialPosition,
-        myLocationEnabled: true,
-        myLocationButtonEnabled: true,
-        markers: _markers,
-        onMapCreated: (controller) => _controller.complete(controller),
-        onTap: (LatLng tapped) {
-          _placeFetcher.fetchNearbyPlaces(tapped);
-        },
+      body: Stack(
+        children: [
+          // ✅ 실시간 마커를 포함한 지도 위젯
+          RealTimeMapController(
+            initialMarkers: _staticMarkers,
+            onMapCreated: (controller) => _controller.complete(controller),
+            onTap: (LatLng tapped) {
+              _placeFetcher.fetchNearbyPlaces(tapped);
+            },
+          ),
+        ],
       ),
     );
   }

@@ -3,25 +3,34 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wheeltrip/signin/main_login.dart';
 import 'package:wheeltrip/map/map_view.dart';
 import 'package:wheeltrip/alarm/emergency_button.dart';
+import 'package:wheeltrip/realtime_location/location_tracker.dart';
 
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const HomeBody();
-  }
-}
-
-class HomeBody extends StatelessWidget {
+class HomeBody extends StatefulWidget {
   const HomeBody({super.key});
 
+  @override
+  State<HomeBody> createState() => _HomeBodyState();
+}
+
+class _HomeBodyState extends State<HomeBody> {
+  @override
+  void initState() {
+    super.initState();
+    LocationTracker.start(); // ✅ 위치 자동 전송 시작
+  }
+
+  @override
+  void dispose() {
+    LocationTracker.stop(); // ✅ 화면 나갈 때 타이머 정리
+    super.dispose();
+  }
+
   Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut(); // Firebase 로그아웃
+    await FirebaseAuth.instance.signOut();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false, // 뒤로가기 불가
+          (route) => false,
     );
   }
 
@@ -40,12 +49,11 @@ class HomeBody extends StatelessWidget {
         ],
       ),
       body: Stack(
-        children: [
-          const MapView(), // 기본 지도 뷰
-          const EmergencyButton(),
+        children: const [
+          MapView(),
+          EmergencyButton(),
         ],
       ),
     );
   }
 }
-
