@@ -16,12 +16,12 @@ class _HomeBodyState extends State<HomeBody> {
   @override
   void initState() {
     super.initState();
-    LocationTracker.start(); // ✅ 위치 자동 전송 시작
+    LocationTracker.start();
   }
 
   @override
   void dispose() {
-    LocationTracker.stop(); // ✅ 화면 나갈 때 타이머 정리
+    LocationTracker.stop();
     super.dispose();
   }
 

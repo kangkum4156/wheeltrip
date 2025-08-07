@@ -6,7 +6,7 @@ import 'package:wheeltrip/data/const_data.dart'; // user_email 사용
 import 'package:wheeltrip/map/map_load.dart'; // loadMarkersFromGlobalVariable
 import 'package:wheeltrip/map/map_fetch.dart'; // PlaceFetcher
 import 'package:wheeltrip/feedback/feedback_view.dart'; // 저장된 피드백 보기
-import 'package:wheeltrip/realtime_location/load_marker_with_name.dart'; // ✅ 새로운 위젯으로 교체
+import 'package:wheeltrip/realtime_location/load_marker_with_name.dart'; 
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
