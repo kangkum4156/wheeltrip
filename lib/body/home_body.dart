@@ -4,6 +4,7 @@ import 'package:wheeltrip/signin/main_login.dart';
 import 'package:wheeltrip/map/map_view.dart';
 import 'package:wheeltrip/alarm/emergency_button.dart';
 import 'package:wheeltrip/realtime_location/location_tracker.dart';
+import 'package:wheeltrip/bar/menu.dart';
 
 class HomeBody extends StatefulWidget {
   const HomeBody({super.key});
@@ -27,6 +28,7 @@ class _HomeBodyState extends State<HomeBody> {
 
   Future<void> _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -41,15 +43,14 @@ class _HomeBodyState extends State<HomeBody> {
         title: const Text('홈'),
         backgroundColor: Colors.blue,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-            tooltip: '로그아웃',
+          buildAppMenuButton(
+            context: context,
+            onLogout: () => _logout(context),
           ),
         ],
       ),
-      body: Stack(
-        children: const [
+      body: const Stack(
+        children: [
           MapView(),
           EmergencyButton(),
         ],

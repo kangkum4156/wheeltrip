@@ -6,7 +6,7 @@ import 'package:wheeltrip/data/const_data.dart'; // user_email 사용
 import 'package:wheeltrip/map/map_load.dart'; // loadMarkersFromGlobalVariable
 import 'package:wheeltrip/map/map_fetch.dart'; // PlaceFetcher
 import 'package:wheeltrip/feedback/feedback_view.dart'; // 저장된 피드백 보기
-import 'package:wheeltrip/realtime_location/load_marker_with_name.dart'; 
+import 'package:wheeltrip/realtime_location/load_marker_with_name.dart';
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -94,7 +94,6 @@ class _MapViewState extends State<MapView> {
     return Scaffold(
       body: Stack(
         children: [
-          // ✅ 실시간 마커를 포함한 지도 위젯
           RealTimeMapController(
             initialMarkers: _staticMarkers,
             onMapCreated: (controller) => _controller.complete(controller),
