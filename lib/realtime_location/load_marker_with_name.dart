@@ -84,7 +84,7 @@ class _RealTimeMapControllerState extends State<RealTimeMapController> {
 
       if (email == null || !_allowedEmails.contains(email)) continue;
       if (lat == null || lng == null) continue;
-      
+
       next.add(
         Marker(
           markerId: MarkerId(entry.key),
