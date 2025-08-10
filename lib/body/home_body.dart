@@ -5,6 +5,7 @@ import 'package:wheeltrip/map/map_view.dart';
 import 'package:wheeltrip/alarm/emergency_button.dart';
 import 'package:wheeltrip/realtime_location/location_tracker.dart';
 import 'package:wheeltrip/bar/menu.dart';
+import 'package:wheeltrip/road/road_screen.dart';
 
 class HomeBody extends StatefulWidget {
   const HomeBody({super.key});
@@ -14,6 +15,8 @@ class HomeBody extends StatefulWidget {
 }
 
 class _HomeBodyState extends State<HomeBody> {
+  int _selectedModeIndex = 0; // 0: MapView, 1: RoadScreen
+
   @override
   void initState() {
     super.initState();
@@ -32,7 +35,7 @@ class _HomeBodyState extends State<HomeBody> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
+      (route) => false,
     );
   }
 
@@ -48,11 +51,90 @@ class _HomeBodyState extends State<HomeBody> {
             onLogout: () => _logout(context),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedModeIndex = 0;
+                      });
+                    },
+                    child: Container(
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color:
+                            _selectedModeIndex == 0
+                                ? Colors.blue[800]
+                                : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue),
+                      ),
+                      child: Text(
+                        'Map 모드',
+                        style: TextStyle(
+                          fontSize: _selectedModeIndex == 0 ? 20 : 13,
+                          color:
+                              _selectedModeIndex == 0
+                                  ? Colors.white
+                                  : Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedModeIndex = 1;
+                      });
+                    },
+                    child: Container(
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color:
+                            _selectedModeIndex == 1
+                                ? Colors.blue[800]
+                                : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue),
+                      ),
+                      child: Text(
+                        'Road 모드',
+                        style: TextStyle(
+                          fontSize: _selectedModeIndex == 1 ? 20 : 13,
+                          color:
+                              _selectedModeIndex == 1
+                                  ? Colors.white
+                                  : Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      body: const Stack(
+      body: Stack(
         children: [
-          MapView(),
-          EmergencyButton(),
+          // 모드에 따라 MapView 또는 RoadScreen 보여주기
+          if (_selectedModeIndex == 0) const MapView(),
+          if (_selectedModeIndex == 1) const RoadScreen(),
+
+          // 항상 보이는 EmergencyButton
+          const EmergencyButton(),
         ],
       ),
     );

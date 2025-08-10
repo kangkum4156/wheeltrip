@@ -1,0 +1,205 @@
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:wheeltrip/road/road_save_load.dart';
+import 'package:wheeltrip/road/road_bottom.dart';
+import 'package:wheeltrip/data/const_data.dart';
+import 'package:wheeltrip/road/road_tmap.dart';
+
+class RoadScreen extends StatefulWidget {
+  const RoadScreen({super.key});
+
+  @override
+  RoadScreenState createState() => RoadScreenState();
+}
+
+class RoadScreenState extends State<RoadScreen> {
+  GoogleMapController? _mapController;
+  LatLng? startPoint;
+  LatLng? endPoint;
+
+  Set<Circle> circles = {};
+  Set<Polyline> polylines = {};
+
+  List<Map<String, dynamic>> loadedRoutes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAndDisplayRoutes();
+  }
+
+  Future<void> _loadAndDisplayRoutes() async {
+    loadedRoutes = await RoadFirestoreService.loadRoutes();
+
+    Set<Polyline> loadedPolylines = {};
+
+    for (var route in loadedRoutes) {
+      loadedPolylines.add(
+        Polyline(
+          polylineId: PolylineId(route['id']),
+          points: route['points'],
+          width: 7,
+          color: RoadFirestoreService.getPolylineColor(route['avgRate']),
+          consumeTapEvents: true,
+          onTap: () => _onPolylineTap(route['id'], route['points'], route['avgRate']),
+        ),
+      );
+    }
+
+    setState(() {
+      polylines = loadedPolylines;
+    });
+  }
+
+  Future<void> _onPolylineTap(String routeId, List<LatLng> coords, double avgRate) async {
+    int myRate = await RoadFirestoreService.getUserRateForRoute(
+      userEmail: user_email,
+      routeId: routeId,
+    );
+
+    showRateBottomSheet(
+      myRate : myRate,
+      context: context,
+      coords: coords,
+      initialRate: myRate == 0 ? null : myRate,
+      avgRate: avgRate,
+      onRouteSaved: (coords, rate) async {
+        final result = await RoadFirestoreService.saveOrUpdateUserRate(
+          userEmail: user_email,
+          routeId: routeId,
+          coords: coords,
+          newRate: rate,
+        );
+
+        setState(() {
+          polylines.removeWhere((p) => p.polylineId.value == routeId);
+          polylines.add(
+            Polyline(
+              polylineId: PolylineId(routeId),
+              points: coords,
+              width: 7,
+              color: RoadFirestoreService.getPolylineColor(result['avgRate']),
+              consumeTapEvents: true,
+              onTap: () => _onPolylineTap(routeId, coords, result['avgRate']),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Future<void> _saveNewRoute(List<LatLng> coords, int rate) async {
+    final result = await RoadFirestoreService.saveNewRoute(
+      userEmail: user_email,
+      coords: coords,
+      rate: rate,
+    );
+
+    setState(() {
+      polylines.add(
+        Polyline(
+          polylineId: PolylineId(result['id']),
+          points: coords,
+          width: 7,
+          color: RoadFirestoreService.getPolylineColor(result['avgRate']),
+          consumeTapEvents: true,
+          onTap: () => _onPolylineTap(result['id'], coords, result['avgRate']),
+        ),
+      );
+
+      startPoint = null;
+      endPoint = null;
+      circles.clear();
+    });
+  }
+
+  Future<void> _getRouteAndSave() async {
+    if (startPoint == null || endPoint == null) return;
+
+    final coords = await TmapService.getWalkingRoute(startPoint!, endPoint!);
+    if (coords.isEmpty) return;
+
+    final tempPolyline = Polyline(
+      polylineId: PolylineId('temp'),
+      points: coords,
+      width: 8,
+      color: Colors.blueAccent.withAlpha((255 * 0.7).round()),
+    );
+
+    setState(() {
+      polylines.add(tempPolyline);
+    });
+
+    if (_mapController != null) {
+      final lat = (startPoint!.latitude + endPoint!.latitude) / 2;
+      final lng = (startPoint!.longitude + endPoint!.longitude) / 2;
+      await _mapController!.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(target: LatLng(lat, lng), zoom: 17)));
+    }
+
+    bool? saved = await showRateBottomSheet(
+      myRate: 0,
+      context: context,
+      coords: coords,
+      onRouteSaved: (coords, rate) async {
+        await _saveNewRoute(coords, rate);
+      },
+    );
+
+    if (saved != true) {
+      setState(() {
+        polylines.removeWhere((p) => p.polylineId.value == 'temp');
+        startPoint = null;
+        endPoint = null;
+        circles.clear();
+      });
+    }
+  }
+
+  void _onMapTap(LatLng pos) {
+    final adjustedPos = LatLng(pos.latitude + 0.00001, pos.longitude - 0.00001);
+
+    setState(() {
+      if (startPoint == null) {
+        startPoint = adjustedPos;
+        circles.add(
+          Circle(
+            circleId: CircleId('start'),
+            center: adjustedPos,
+            radius: 5,
+            fillColor: Colors.green.withAlpha((255 * 0.8).round()),
+            strokeColor: Colors.green,
+            strokeWidth: 1,
+          ),
+        );
+      } else if (endPoint == null) {
+        endPoint = adjustedPos;
+        circles.add(
+          Circle(
+            circleId: CircleId('end'),
+            center: adjustedPos,
+            radius: 5,
+            fillColor: Colors.red.withAlpha((255 * 0.8).round()),
+            strokeColor: Colors.red,
+            strokeWidth: 1,
+          ),
+        );
+        _getRouteAndSave();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: GoogleMap(
+        onMapCreated: (controller) => _mapController = controller,
+        myLocationEnabled: true,            // 내 위치 표시
+        myLocationButtonEnabled: true,      // 내 위치로 돌아가는 버튼 표시
+        onTap: _onMapTap,
+        circles: circles,
+        polylines: polylines,
+        initialCameraPosition: CameraPosition(target: LatLng(35.8880, 128.6106), zoom: 17),
+      ),
+    );
+  }
+}
