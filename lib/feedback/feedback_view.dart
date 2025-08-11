@@ -171,22 +171,11 @@ void showFeedbackViewSheet({
                       final currentUserId =
                           FirebaseAuth.instance.currentUser?.uid;
 
-                      final sortedFeedbacks = [ // 내 피드백이 가장 위로 올라오도록
-                        ...feedbacks.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          return data['userId'] == currentUserId;
-                        }),
-                        ...feedbacks.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          return data['userId'] != currentUserId;
-                        }),
-                      ];
-
                       return ListView.builder(
                         controller: scrollController,
-                        itemCount: sortedFeedbacks.length,
+                        itemCount: feedbacks.length,
                         itemBuilder: (context, index) {
-                          final fb = sortedFeedbacks[index].data()
+                          final fb = feedbacks[index].data()
                           as Map<String, dynamic>;
                           final rating = fb['rating'] ?? 0;
                           final comment = fb['comment'] ?? '';

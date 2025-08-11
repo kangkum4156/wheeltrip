@@ -14,7 +14,7 @@ class SavePlace extends StatelessWidget {
   final String time;
   final String address;
   final String googlePlaceId;
-  final Map<String, dynamic>? extraData; // 🔹 features 등 추가 데이터
+  final Map<String, dynamic>? extraData; // features 등 추가 데이터
   final Function(Marker) onSaveComplete;
   final bool saveToUserSavedPlaces;
 
@@ -46,11 +46,16 @@ class SavePlace extends StatelessWidget {
         return;
       }
 
-      // 🔹 Google place_id 로 문서 참조
-      DocumentReference placeRef =
-      firestore.collection('places').doc(googlePlaceId);
+      // 이메일 그대로 사용(없으면 uid로 폴백)
+      final String feedbackDocId =
+      (user.email != null && user.email!.trim().isNotEmpty)
+          ? user.email!.trim()
+          : user.uid;
 
-      // 문서가 없으면 생성
+      // places/{googlePlaceId}
+      final placeRef = firestore.collection('places').doc(googlePlaceId);
+
+      // 장소 문서가 없으면 생성
       final docSnap = await placeRef.get();
       if (!docSnap.exists) {
         await placeRef.set({
@@ -65,39 +70,43 @@ class SavePlace extends StatelessWidget {
       }
 
       // 피드백 데이터
-      final Map<String, Object?> feedbackData = {
+      final Map<String, dynamic> feedbackData = {
         'userId': user.uid,
+        'userEmail': user.email ?? '',
         'userName': user.displayName ?? '익명',
         'rating': rating,
         'comment': comment,
-        'photoUrl': '',
         'timestamp': FieldValue.serverTimestamp(),
       };
 
-      // 🔹 extraData(features 등)가 있으면 합침
+      // extraData(features 등) 병합
       if (extraData != null && extraData!.isNotEmpty) {
         feedbackData.addAll(extraData!);
       }
 
-      // 피드백 저장
-      await placeRef.collection('feedbacks').add(feedbackData);
+      // 피드백 저장: places/{placeId}/feedbacks/{user.email or uid}
+      // 같은 사용자가 다시 저장하면 merge로 갱신
+      await placeRef
+          .collection('feedbacks')
+          .doc(feedbackDocId)
+          .set(feedbackData, SetOptions(merge: true));
 
       // 평균 평점 업데이트
       final feedbacksSnapshot = await placeRef.collection('feedbacks').get();
       if (feedbacksSnapshot.docs.isNotEmpty) {
         final total = feedbacksSnapshot.docs
-            .map((doc) => (doc['rating'] as int))
-            .reduce((a, b) => a + b);
+            .map((d) => (d.data()['rating'] as num?) ?? 0)
+            .fold<num>(0, (a, b) => a + b);
         final avg = total / feedbacksSnapshot.docs.length;
         await placeRef.update({'avgRating': avg});
       }
 
-      // 사용자 saved_places 에 추가
+      // 사용자 saved_places 에 추가(옵션)
       if (saveToUserSavedPlaces) {
         final createdAt = FieldValue.serverTimestamp();
         await firestore
             .collection('users')
-            .doc(user_email)
+            .doc(user_email) // 기존 앱 로직 유지
             .collection('saved_places')
             .doc(googlePlaceId)
             .set({
