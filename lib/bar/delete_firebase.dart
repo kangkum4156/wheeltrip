@@ -48,17 +48,33 @@ class _DeleteFirebaseState extends State<DeleteFirebase> {
   }
 
   Future<void> _deletePlaces() async {
-    final snapshot = await _firestore.collection('places').get();
-    for (var doc in snapshot.docs) {
-      await doc.reference.delete();
+    final placesSnapshot = await _firestore.collection('places').get();
+
+    for (var placeDoc in placesSnapshot.docs) {
+      // places 하위 feedbacks 삭제
+      final feedbacksSnapshot = await placeDoc.reference.collection('feedbacks').get();
+      for (var fbDoc in feedbacksSnapshot.docs) {
+        await fbDoc.reference.delete();
+      }
+
+      // places 문서 삭제
+      await placeDoc.reference.delete();
     }
     _showSnackBar("places 컬렉션 전체 삭제 완료");
   }
 
   Future<void> _deleteRoutes() async {
-    final snapshot = await _firestore.collection('routes').get();
-    for (var doc in snapshot.docs) {
-      await doc.reference.delete();
+    final routesSnapshot = await _firestore.collection('routes').get();
+
+    for (var routeDoc in routesSnapshot.docs) {
+      // routes 하위 feedbacks 삭제
+      final feedbacksSnapshot = await routeDoc.reference.collection('feedbacks').get();
+      for (var fbDoc in feedbacksSnapshot.docs) {
+        await fbDoc.reference.delete();
+      }
+
+      // routes 문서 삭제
+      await routeDoc.reference.delete();
     }
     _showSnackBar("routes 컬렉션 전체 삭제 완료");
   }
@@ -67,19 +83,21 @@ class _DeleteFirebaseState extends State<DeleteFirebase> {
     final usersSnapshot = await _firestore.collection('users').get();
 
     for (var userDoc in usersSnapshot.docs) {
-      final myRoutes = await userDoc.reference.collection('my_routes').get();
-      for (var doc in myRoutes.docs) {
-        await doc.reference.delete();
+      // my_routes 삭제
+      final myRoutesSnapshot = await userDoc.reference.collection('my_routes').get();
+      for (var myRouteDoc in myRoutesSnapshot.docs) {
+        await myRouteDoc.reference.delete();
       }
 
-      final savedPlaces =
-          await userDoc.reference.collection('saved_places').get();
-      for (var doc in savedPlaces.docs) {
-        await doc.reference.delete();
+      // saved_places 삭제
+      final savedPlacesSnapshot = await userDoc.reference.collection('saved_places').get();
+      for (var savedPlaceDoc in savedPlacesSnapshot.docs) {
+        await savedPlaceDoc.reference.delete();
       }
     }
     _showSnackBar("모든 유저의 my_routes, saved_places 삭제 완료");
   }
+
 
   @override
   Widget build(BuildContext context) {

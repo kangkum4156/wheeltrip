@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-typedef OnRouteSavedCallback = Future<void> Function(List<LatLng> coords, int rate);
+typedef OnNewRouteSavedCallback = Future<void> Function(List<LatLng> coords, int rate, List<String> features);
 
-Future<bool?> showRateBottomSheet({
-  required int myRate,
+Future<bool?> showNewBottomSheet({
   required BuildContext context,
   required List<LatLng> coords,
-  required OnRouteSavedCallback onRouteSaved,
-  int? initialRate,
-  double? avgRate,
+  required OnNewRouteSavedCallback onRouteSaved,
 }) {
-  int selectedRate = initialRate ?? 3;
+  int selectedRate = 3; // 기본 평점 3점
+  List<String> selectedFeatures = [];
+
+  final List<String> featureOptions = ['경사로', '차도', '인도'];
 
   return showModalBottomSheet<bool>(
     context: context,
@@ -23,6 +23,15 @@ Future<bool?> showRateBottomSheet({
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
+          void toggleFeature(String feature) {
+            if (selectedFeatures.contains(feature)) {
+              selectedFeatures.remove(feature);
+            } else {
+              selectedFeatures.add(feature);
+            }
+            setState(() {});
+          }
+
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -33,15 +42,10 @@ Future<bool?> showRateBottomSheet({
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: 8),
-                Text("이 경로의 편의도를 별점으로 평가해주세요."),
-                if (avgRate != null) ...[
-                  SizedBox(height: 8),
-                  Text(
-                    "평균 평점: ${avgRate.toStringAsFixed(1)}",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[700]),
-                  ),
-                ],
+                Text("새로운 경로를 평가해주세요."),
+                SizedBox(height: 12),
+
+                // 별점 선택
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(3, (index) {
@@ -60,14 +64,40 @@ Future<bool?> showRateBottomSheet({
                     );
                   }),
                 ),
+
                 SizedBox(height: 16),
+
+                // features 체크박스
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: featureOptions.map((feature) {
+                    final isSelected = selectedFeatures.contains(feature);
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          value: isSelected,
+                          onChanged: (checked) {
+                            toggleFeature(feature);
+                          },
+                        ),
+                        Text(feature),
+                        SizedBox(width: 12),
+                      ],
+                    );
+                  }).toList(),
+                ),
+
+                SizedBox(height: 24),
+
                 ElevatedButton(
                   onPressed: () async {
-                    await onRouteSaved(coords, selectedRate);
+                    await onRouteSaved(coords, selectedRate, selectedFeatures);
                     Navigator.pop(context, true);
                   },
-                  child: Text(myRate == 0 ? "저장" : "수정"),
+                  child: Text("경로 생성하기"),
                 ),
+
                 SizedBox(height: 16),
               ],
             ),
