@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wheeltrip/bar/guardian_add.dart';
+import 'package:wheeltrip/bar/delete_firebase.dart';
 
 /// 홈 AppBar에 붙일 메뉴 버튼 위젯
 Widget buildAppMenuButton({
@@ -33,6 +34,11 @@ Widget buildAppMenuButton({
         case _AppMenuAction.logout:
           await onLogout();
           break;
+        case _AppMenuAction.delete:
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const DeleteFirebase()),
+          );
       }
     },
     itemBuilder: (context) => const [
@@ -54,11 +60,20 @@ Widget buildAppMenuButton({
           dense: true,
         ),
       ),
+      PopupMenuItem(
+        value: _AppMenuAction.delete,
+        child: ListTile(
+          leading: Icon(Icons.delete),
+          title: Text('삭제'),
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
+      ),
     ],
   );
 }
 
-enum _AppMenuAction { addGuardian, logout }
+enum _AppMenuAction { addGuardian, logout, delete}
 
 /// 보호자 이메일 입력 다이얼로그
 Future<String?> _promptGuardianEmail(BuildContext context) async {
