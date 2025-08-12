@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:wheeltrip/data/const_data.dart';
+import 'package:wheeltrip/road/road_feedback_options.dart';
 
 Future<void> showEditFeedbackBottomSheet({
   required BuildContext context,
@@ -10,7 +11,6 @@ Future<void> showEditFeedbackBottomSheet({
 }) {
   int selectedRate = initialRate;
   List<String> selectedFeatures = List.from(initialFeatures ?? []);
-  final featureOptions = ['경사로', '차도', '인도'];
 
   return showModalBottomSheet(
     context: context,
@@ -18,14 +18,6 @@ Future<void> showEditFeedbackBottomSheet({
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          void toggleFeature(String f) {
-            if (selectedFeatures.contains(f)) {
-              selectedFeatures.remove(f);
-            } else {
-              selectedFeatures.add(f);
-            }
-            setState(() {});
-          }
 
           return Padding(
             padding: EdgeInsets.only(
@@ -61,24 +53,16 @@ Future<void> showEditFeedbackBottomSheet({
                 const SizedBox(height: 16),
 
                 // features 체크박스
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  children: featureOptions.map((feature) {
-                    final selected = selectedFeatures.contains(feature);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Checkbox(
-                            value: selected,
-                            onChanged: (_) => toggleFeature(feature),
-                          ),
-                          Text(feature),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                RoadFeedbackOptions(
+                  selectedFeatures: selectedFeatures,
+                  isEditable: true,
+                  onFeaturesChanged: (features) {
+                    setState(() {
+                      selectedFeatures
+                        ..clear()
+                        ..addAll(features);
+                    });
+                  },
                 ),
 
                 const SizedBox(height: 24),

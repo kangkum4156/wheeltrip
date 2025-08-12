@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:wheeltrip/data/const_data.dart';
+import 'package:wheeltrip/road/road_feedback_options.dart';
 
 typedef OnRouteSavedCallback = Future<void> Function(
    String routeId, int rate, List<String> features);
@@ -13,8 +14,6 @@ Future<bool?> showAddRoadFeedbackBottomSheet({
   int selectedRate = 3; // 기본 평점
   List<String> selectedFeatures = [];
 
-  final List<String> featureOptions = ['경사로', '차도', '인도'];
-
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
@@ -25,15 +24,6 @@ Future<bool?> showAddRoadFeedbackBottomSheet({
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          void toggleFeature(String feature) {
-            if (selectedFeatures.contains(feature)) {
-              selectedFeatures.remove(feature);
-            } else {
-              selectedFeatures.add(feature);
-            }
-            setState(() {});
-          }
-
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -77,24 +67,16 @@ Future<bool?> showAddRoadFeedbackBottomSheet({
                 const SizedBox(height: 16),
 
                 // features 체크박스
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  children: featureOptions.map((feature) {
-                    final isSelected = selectedFeatures.contains(feature);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Checkbox(
-                            value: isSelected,
-                            onChanged: (_) => toggleFeature(feature),
-                          ),
-                          Text(feature),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                RoadFeedbackOptions(
+                  selectedFeatures: selectedFeatures,
+                  isEditable: true,
+                  onFeaturesChanged: (features) {
+                    setState(() {
+                      selectedFeatures
+                        ..clear()
+                        ..addAll(features);
+                    });
+                  },
                 ),
 
                 const SizedBox(height: 24),

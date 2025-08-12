@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:wheeltrip/road/road_feedback_options.dart';
 
 typedef OnNewRouteSavedCallback = Future<void> Function(List<LatLng> coords, int rate, List<String> features);
 
@@ -11,8 +12,6 @@ Future<bool?> showNewBottomSheet({
   int selectedRate = 3; // 기본 평점 3점
   List<String> selectedFeatures = [];
 
-  final List<String> featureOptions = ['경사로', '차도', '인도'];
-
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
@@ -23,14 +22,6 @@ Future<bool?> showNewBottomSheet({
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          void toggleFeature(String feature) {
-            if (selectedFeatures.contains(feature)) {
-              selectedFeatures.remove(feature);
-            } else {
-              selectedFeatures.add(feature);
-            }
-            setState(() {});
-          }
 
           return Padding(
             padding: EdgeInsets.only(
@@ -68,24 +59,16 @@ Future<bool?> showNewBottomSheet({
                 SizedBox(height: 16),
 
                 // features 체크박스
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: featureOptions.map((feature) {
-                    final isSelected = selectedFeatures.contains(feature);
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Checkbox(
-                          value: isSelected,
-                          onChanged: (checked) {
-                            toggleFeature(feature);
-                          },
-                        ),
-                        Text(feature),
-                        SizedBox(width: 12),
-                      ],
-                    );
-                  }).toList(),
+                RoadFeedbackOptions(
+                  selectedFeatures: selectedFeatures,
+                  isEditable: true,
+                  onFeaturesChanged: (features) {
+                    setState(() {
+                      selectedFeatures
+                        ..clear()
+                        ..addAll(features);
+                    });
+                  },
                 ),
 
                 SizedBox(height: 24),
