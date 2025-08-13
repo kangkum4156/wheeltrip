@@ -44,6 +44,7 @@ class RoadScreenState extends State<RoadScreen> {
           consumeTapEvents: true,
           onTap:
               () => onPolylineTap(
+                mapController: _mapController,
                 context: context,
                 routeId: route['id'],
                 coords: route['points'],
@@ -82,6 +83,7 @@ class RoadScreenState extends State<RoadScreen> {
           consumeTapEvents: true,
           onTap: () async {
             await onPolylineTap(
+              mapController: _mapController,
               context: this.context,
               routeId: result['id'],
               coords: coords,
@@ -118,7 +120,7 @@ class RoadScreenState extends State<RoadScreen> {
     });
 
     if (_mapController != null) {
-      final lat = (startPoint!.latitude + endPoint!.latitude) / 2;
+      final lat = (startPoint!.latitude + endPoint!.latitude) / 2- 0.0005;
       final lng = (startPoint!.longitude + endPoint!.longitude) / 2;
       await _mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
