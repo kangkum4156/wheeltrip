@@ -2,11 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:wheeltrip/map/map_to_firebase_save.dart';
+import 'package:wheeltrip/map/map_to_firebase_save.dart'; // SavePlace 위젯(기존)
 import 'package:wheeltrip/feedback/feedback_option_button.dart';
-import 'package:wheeltrip/feedback/feedback_photo_service.dart'; // photoUrls 배열에 추가
+
+// ✅ 지연 업로드용 헬퍼들
+import 'package:wheeltrip/feedback/pending_photo.dart';
+import 'package:wheeltrip/feedback/feedback_photo_service.dart'
+    show pickAndCompressOnePhoto, uploadPendingPhotos, upsertFeedbackDocument;
 
 void showFeedbackAddSheet({
   required BuildContext context,
@@ -22,7 +25,11 @@ void showFeedbackAddSheet({
   int selectedEmotion = 5;
   final List<String> selectedFeatures = [];
 
-  double uploadProgress = 0;
+  // 작성 중 추가한(아직 업로드하지 않은) 사진들
+  final List<PendingPhoto> pendingPhotos = [];
+
+  // 등록(제출) 단계에서의 전체 진행률
+  double submitProgress = 0.0;
 
   showModalBottomSheet(
     context: context,
@@ -107,38 +114,75 @@ void showFeedbackAddSheet({
 
                 const SizedBox(height: 12),
 
-                // ✅ 현재 "내 피드백"의 photoUrls 미리보기(가로 썸네일 리스트)
-                _MyFeedbackPhotoStrip(googlePlaceId: googlePlaceId),
+                // ✅ 작성 중 로컬 사진 미리보기(아직 업로드하지 않음)
+                if (pendingPhotos.isNotEmpty)
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: pendingPhotos.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (_, i) => Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.memory(
+                              pendingPhotos[i].bytes,
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          // ❌ 개별 삭제 버튼(원하면 유지)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Material(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: () => setState(() => pendingPhotos.removeAt(i)),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4.0),
+                                  child: Icon(Icons.close, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 const SizedBox(height: 8),
 
-                // 업로드 진행률 (진행 중일 때만 표시)
-                if (uploadProgress > 0 && uploadProgress < 1)
+                // 제출(등록) 단계 진행률
+                if (submitProgress > 0 && submitProgress < 1)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
-                    child: LinearProgressIndicator(value: uploadProgress),
+                    child: LinearProgressIndicator(value: submitProgress),
                   ),
 
-                // 사진 추가(한 번에 1장씩 → 여러 번 누르면 여러 장)
+                // 사진 추가(작성 중: 로컬만 저장 → 미리보기 표시)
                 Align(
                   alignment: Alignment.centerRight,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.photo_library),
                     label: const Text('사진 추가'),
                     onPressed: () async {
-                      await addOnePhotoToMyFeedback(
-                        context: context,
-                        googlePlaceId: googlePlaceId,
-                        onProgress: (p) => setState(() => uploadProgress = p),
-                      );
-                      setState(() => uploadProgress = 0);
+                      final picked = await pickAndCompressOnePhoto();
+                      if (picked != null) {
+                        setState(() => pendingPhotos.add(picked));
+                      }
                     },
                   ),
                 ),
 
                 const SizedBox(height: 24),
 
-                // 저장 버튼
+                // ✅ 등록 버튼: SavePlace 완료 콜백에서 업로드 & Firestore 병합
                 Center(
                   child: SavePlace(
                     latitude: latLng.latitude,
@@ -155,8 +199,52 @@ void showFeedbackAddSheet({
                         ? {"features": selectedFeatures}
                         : {},
                     onSaveComplete: (marker) async {
+                      // 여기서만 실제 업로드 & Firestore photoUrls 반영
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null && pendingPhotos.isNotEmpty) {
+                        final feedbackDocId =
+                        (user.email != null && user.email!.trim().isNotEmpty)
+                            ? user.email!.trim()
+                            : user.uid;
+
+                        try {
+                          // 1) 사진 일괄 업로드(전체 진행률 표시)
+                          final newUrls = await uploadPendingPhotos(
+                            googlePlaceId: googlePlaceId,
+                            pending: pendingPhotos,
+                            onProgress: (p) {
+                              if (context.mounted) {
+                                setState(() => submitProgress = p);
+                              }
+                            },
+                          );
+
+                          // 2) Firestore에 photoUrls 합치기(merge)
+                          await upsertFeedbackDocument(
+                            googlePlaceId: googlePlaceId,
+                            feedbackDocId: feedbackDocId,
+                            data: const {}, // comment/rating은 SavePlace가 이미 저장
+                            photoUrlsToAdd: newUrls,
+                          );
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('사진 업로드 실패: $e')),
+                            );
+                          }
+                        } finally {
+                          if (context.mounted) {
+                            setState(() {
+                              submitProgress = 0.0;
+                              pendingPhotos.clear();
+                            });
+                          }
+                        }
+                      }
+
+                      // 외부 콜백 수행(지도 갱신 등)
                       await onSaveComplete();
-                      Navigator.pop(context);
+                      if (context.mounted) Navigator.pop(context);
                     },
                   ),
                 ),
@@ -167,70 +255,4 @@ void showFeedbackAddSheet({
       );
     },
   );
-}
-
-/// 내 피드백 문서의 photoUrls를 실시간으로 가로 썸네일 스트립으로 표시
-class _MyFeedbackPhotoStrip extends StatelessWidget {
-  final String googlePlaceId;
-  const _MyFeedbackPhotoStrip({super.key, required this.googlePlaceId});
-
-  @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const SizedBox.shrink();
-
-    final feedbackDocId =
-    (user.email != null && user.email!.trim().isNotEmpty)
-        ? user.email!.trim()
-        : user.uid;
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('places')
-          .doc(googlePlaceId)
-          .collection('feedbacks')
-          .doc(feedbackDocId)
-          .snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData || !snap.data!.exists) {
-          return const SizedBox.shrink();
-        }
-        final data = snap.data!.data() as Map<String, dynamic>;
-        final urls = (data['photoUrls'] is List)
-            ? List<String>.from(
-          (data['photoUrls'] as List).where((e) => e is String && e.trim().isNotEmpty),
-        )
-            : <String>[];
-
-        if (urls.isEmpty) return const SizedBox.shrink();
-
-        return SizedBox(
-          height: 72,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: urls.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
-            itemBuilder: (_, i) => ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(
-                urls[i],
-                width: 72,
-                height: 72,
-                fit: BoxFit.cover,
-                loadingBuilder: (c, child, p) =>
-                p == null ? child : const SizedBox(width: 72, height: 72, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                errorBuilder: (c, e, s) => Container(
-                  width: 72,
-                  height: 72,
-                  color: Colors.grey.shade200,
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.broken_image, size: 20),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }

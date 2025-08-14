@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wheeltrip/bar/guardian_add.dart';
 import 'package:wheeltrip/bar/delete_firebase.dart';
+import 'package:wheeltrip/profile/profile.dart'; // ✅ 프로필 화면
 
 /// 홈 AppBar에 붙일 메뉴 버튼 위젯
 Widget buildAppMenuButton({
@@ -12,6 +13,14 @@ Widget buildAppMenuButton({
     icon: const Icon(Icons.menu),
     onSelected: (action) async {
       switch (action) {
+        case _AppMenuAction.manageAccount:
+        // ✅ 계정 관리 → 프로필 화면으로 이동
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          );
+          break;
+
         case _AppMenuAction.addGuardian:
           final email = await _promptGuardianEmail(context);
           if (email != null && email.isNotEmpty) {
@@ -31,17 +40,29 @@ Widget buildAppMenuButton({
             }
           }
           break;
+
         case _AppMenuAction.logout:
           await onLogout();
           break;
+
         case _AppMenuAction.delete:
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const DeleteFirebase()),
           );
+          break;
       }
     },
     itemBuilder: (context) => const [
+      PopupMenuItem(
+        value: _AppMenuAction.manageAccount,
+        child: ListTile(
+          leading: Icon(Icons.manage_accounts),
+          title: Text('계정 관리'),
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
+      ),
       PopupMenuItem(
         value: _AppMenuAction.addGuardian,
         child: ListTile(
@@ -73,7 +94,7 @@ Widget buildAppMenuButton({
   );
 }
 
-enum _AppMenuAction { addGuardian, logout, delete}
+enum _AppMenuAction { manageAccount, addGuardian, logout, delete }
 
 /// 보호자 이메일 입력 다이얼로그
 Future<String?> _promptGuardianEmail(BuildContext context) async {

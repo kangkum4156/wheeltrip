@@ -1,99 +1,86 @@
 // lib/feedback/feedback_photo_service.dart
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// 1장 선택 → 압축 → Storage → Firestore 내 피드백 문서의 photoUrls 배열에 추가.
-/// 성공 시 업로드된 URL을 반환, 취소/실패 시 null.
-Future<String?> addOnePhotoToMyFeedback({
-  required BuildContext context,
+import 'pending_photo.dart';
+
+/// (A) 사진 1장 선택 → 압축 → 메모리 보관(업로드 X)
+Future<PendingPhoto?> pickAndCompressOnePhoto() async {
+  final x = await ImagePicker().pickImage(source: ImageSource.gallery);
+  if (x == null) return null;
+
+  final tmpDir = await getTemporaryDirectory();
+  final outPath = '${tmpDir.path}/cmp_${DateTime.now().millisecondsSinceEpoch}.jpg';
+  final compressed = await FlutterImageCompress.compressAndGetFile(
+    x.path, outPath, minWidth: 1280, minHeight: 1280, quality: 75, format: CompressFormat.jpeg,
+  );
+  if (compressed == null) return null;
+
+  final bytes = await File(compressed.path).readAsBytes();
+  return PendingPhoto(bytes: bytes, localId: DateTime.now().millisecondsSinceEpoch.toString());
+}
+
+/// (B) 제출 시: 보관중인 사진들 일괄 업로드 -> URL들 반환
+Future<List<String>> uploadPendingPhotos({
   required String googlePlaceId,
-  void Function(double progress)? onProgress,
+  required List<PendingPhoto> pending,
+  void Function(double progress)? onProgress, // 전체 진행률(0~1)
 }) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
-    return null;
-  }
+  final user = FirebaseAuth.instance.currentUser!;
+  final uid = user.uid;
+  final storage = FirebaseStorage.instance;
 
-  try {
-    // 1) 이미지 선택
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return null;
-
-    // 2) 압축(1280px, jpg 75)
-    final raw = File(picked.path);
-    final tmpDir = await getTemporaryDirectory();
-    final outPath =
-        '${tmpDir.path}/cmp_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final compressed = await FlutterImageCompress.compressAndGetFile(
-      raw.path,
-      outPath,
-      minWidth: 1280,
-      minHeight: 1280,
-      quality: 75,
-      format: CompressFormat.jpeg,
-    );
-    if (compressed == null) {
-      throw '이미지 압축에 실패했습니다.';
-    }
-
-    // 3) Storage 업로드
-    final uid = user.uid;
+  final urls = <String>[];
+  for (int i = 0; i < pending.length; i++) {
+    final photo = pending[i];
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final storagePath = 'places/$googlePlaceId/photos/$uid/$ts.jpg';
-    final ref = FirebaseStorage.instance.ref().child(storagePath);
+    final ref = storage.ref('places/$googlePlaceId/photos/$uid/$ts.jpg');
 
-    final task = ref.putFile(
-      File(compressed.path),
-      SettableMetadata(
-        contentType: 'image/jpeg',
-        cacheControl: 'public,max-age=86400',
-      ),
+    final task = ref.putData(
+      photo.bytes,
+      SettableMetadata(contentType: 'image/jpeg', cacheControl: 'public,max-age=86400'),
     );
 
+    // 개별 진행률을 전체 진행률로 환산(대략)
     task.snapshotEvents.listen((s) {
-      if (s.totalBytes > 0 && onProgress != null) {
-        onProgress(s.bytesTransferred / s.totalBytes);
+      if (onProgress != null && s.totalBytes > 0) {
+        final per = s.bytesTransferred / s.totalBytes;
+        final overall = (i + per) / pending.length;
+        onProgress(overall);
       }
     });
 
     await task;
-    final url = await ref.getDownloadURL();
-
-    // 4) Firestore: 내 피드백 문서의 photoUrls 배열에 추가(merge)
-    final feedbackDocId =
-    (user.email != null && user.email!.trim().isNotEmpty)
-        ? user.email!.trim()
-        : uid;
-
-    final feedbackRef = FirebaseFirestore.instance
-        .collection('places')
-        .doc(googlePlaceId)
-        .collection('feedbacks')
-        .doc(feedbackDocId);
-
-    await feedbackRef.set({
-      'photoUrls': FieldValue.arrayUnion([url]), // ✅ 배열로만 저장
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('사진이 추가되었습니다.')));
-    return url;
-  } on FirebaseException catch (e) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('업로드 실패(${e.code})')));
-    return null;
-  } catch (e) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
-    return null;
+    urls.add(await ref.getDownloadURL());
   }
+  return urls;
+}
+
+/// (C) Firestore 저장(새 문서 생성 또는 병합 업데이트)
+Future<void> upsertFeedbackDocument({
+  required String googlePlaceId,
+  required String feedbackDocId,
+  required Map<String, dynamic> data,            // comment/rating/features 등
+  required List<String> photoUrlsToAdd,          // 이번에 업로드한 새 URL들
+}) async {
+  final ref = FirebaseFirestore.instance
+      .collection('places').doc(googlePlaceId)
+      .collection('feedbacks').doc(feedbackDocId);
+
+  final payload = <String, dynamic>{
+    ...data,
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
+
+  if (photoUrlsToAdd.isNotEmpty) {
+    payload['photoUrls'] = FieldValue.arrayUnion(photoUrlsToAdd);
+  }
+
+  await ref.set(payload, SetOptions(merge: true));
 }

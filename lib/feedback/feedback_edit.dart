@@ -1,56 +1,69 @@
+// lib/feedback/feedback_edit.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:wheeltrip/feedback/feedback_option_button.dart';
-import 'package:wheeltrip/feedback/feedback_photo_service.dart'; // 사진 추가(1장씩, photoUrls에 union)
+
+// ✅ 지연 업로드용 헬퍼들
+import 'package:wheeltrip/feedback/pending_photo.dart';
+import 'package:wheeltrip/feedback/feedback_photo_service.dart'
+    show pickAndCompressOnePhoto, uploadPendingPhotos, upsertFeedbackDocument;
 
 void showEditFeedbackSheet({
   required BuildContext context,
   required String googlePlaceId,
-  required String feedbackId,
-  required Map<String, dynamic> existingData,
+  required String feedbackId,                    // 기존 문서 ID (이메일 또는 UID)
+  required Map<String, dynamic> existingData,    // 기존 문서 데이터
 }) {
   final TextEditingController memoController =
   TextEditingController(text: existingData['comment'] ?? '');
-  int selectedEmotion = existingData['rating'] ?? 5;
+  int selectedEmotion = (existingData['rating'] as int?) ?? 5;
 
   // 기존 저장된 시설 옵션
   final List<String> selectedFeatures =
-  List<String>.from(existingData['features'] ?? []);
+  List<String>.from(existingData['features'] ?? const <String>[]);
 
-  // 기존 사진 리스트 (photoUrls 기준)
+  // ✅ 기존 등록 사진(URL) 목록 (서버에 이미 존재)
   final List<String> localPhotoUrls = (existingData['photoUrls'] is List)
       ? List<String>.from(
     (existingData['photoUrls'] as List)
-        .where((e) => e is String && e.trim().isNotEmpty),
+        .where((e) => e is String && e.toString().trim().isNotEmpty),
   )
       : <String>[];
 
-  // 업로드 진행률
-  double uploadProgress = 0;
+  // ✅ 이번 수정에서 새로 추가(아직 업로드하지 않은) 로컬 사진 바이트
+  final List<PendingPhoto> pendingPhotos = [];
+
+  // 제출(수정 완료) 단계의 전체 진행률(0~1)
+  double submitProgress = 0.0;
 
   // 평균 평점 재계산
   Future<void> updateAverageRating(String placeId) async {
     final placeRef = FirebaseFirestore.instance.collection('places').doc(placeId);
     final feedbacksSnapshot = await placeRef.collection('feedbacks').get();
-    if (feedbacksSnapshot.docs.isNotEmpty) {
-      final total = feedbacksSnapshot.docs
-          .map((doc) => (doc['rating'] as num).toDouble())
-          .reduce((a, b) => a + b);
-      final avg = total / feedbacksSnapshot.docs.length;
+    if (feedbacksSnapshot.docs.isEmpty) {
+      await placeRef.update({'avgRating': 0.0});
+    } else {
+      final ratings = feedbacksSnapshot.docs
+          .map((doc) => (doc.data()['rating'] as num?)?.toDouble() ?? 0.0)
+          .toList();
+      final total = ratings.fold<double>(0.0, (a, b) => a + b);
+      final avg = ratings.isEmpty ? 0.0 : total / ratings.length;
       await placeRef.update({'avgRating': avg});
     }
   }
 
-  // 사진 1장 삭제: Storage 파일 삭제 + Firestore 배열에서 제거
+  // 기존 사진 1장 삭제: Storage 파일 삭제 + Firestore 배열에서 제거
   Future<void> deleteOnePhotoUrl(BuildContext ctx, String url) async {
     try {
-      // 1) Storage 삭제 (url → ref)
+      // 1) Storage 삭제
       try {
         final ref = FirebaseStorage.instance.refFromURL(url);
         await ref.delete();
       } catch (_) {
-        // Storage에 없을 수도 있으니 무시 (로그만 찍어도 됨)
+        // 이미 없을 수 있으니 무시(로그만 필요시 남기기)
       }
 
       // 2) Firestore 배열에서 제거
@@ -99,7 +112,7 @@ void showEditFeedbackSheet({
                 ),
                 const SizedBox(height: 12),
 
-                // 📷 사진 리스트 (가로 스크롤 썸네일) + 추가/진행률
+                // 📷 [1] 기존에 등록된 사진(URL) 썸네일
                 if (localPhotoUrls.isNotEmpty)
                   SizedBox(
                     height: 78,
@@ -119,10 +132,14 @@ void showEditFeedbackSheet({
                                 width: 78,
                                 height: 78,
                                 fit: BoxFit.cover,
-                                loadingBuilder: (c, child, p) =>
-                                p == null ? child : const SizedBox(
-                                  width: 78, height: 78,
-                                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                loadingBuilder: (c, child, p) => p == null
+                                    ? child
+                                    : const SizedBox(
+                                  width: 78,
+                                  height: 78,
+                                  child: Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
                                 ),
                                 errorBuilder: (c, e, s) => Container(
                                   width: 78,
@@ -133,7 +150,7 @@ void showEditFeedbackSheet({
                                 ),
                               ),
                             ),
-                            // 삭제 버튼
+                            // 삭제 버튼(기존 사진만)
                             Positioned(
                               right: 0,
                               top: 0,
@@ -149,8 +166,12 @@ void showEditFeedbackSheet({
                                         title: const Text('사진 삭제'),
                                         content: const Text('이 사진을 삭제할까요?'),
                                         actions: [
-                                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-                                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
+                                          TextButton(
+                                              onPressed: () => Navigator.pop(context, false),
+                                              child: const Text('취소')),
+                                          TextButton(
+                                              onPressed: () => Navigator.pop(context, true),
+                                              child: const Text('삭제')),
                                         ],
                                       ),
                                     );
@@ -172,29 +193,67 @@ void showEditFeedbackSheet({
                     ),
                   ),
 
-                // 업로드 진행률
-                if (uploadProgress > 0 && uploadProgress < 1)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: LinearProgressIndicator(value: uploadProgress),
+                const SizedBox(height: 8),
+
+                // 📷 [2] 이번 수정에서 새로 추가(로컬)한 사진 썸네일
+                if (pendingPhotos.isNotEmpty)
+                  SizedBox(
+                    height: 78,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: pendingPhotos.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) => Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              pendingPhotos[i].bytes,
+                              width: 78,
+                              height: 78,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          // 로컬 썸네일 제거 버튼
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Material(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => setState(() => pendingPhotos.removeAt(i)),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4.0),
+                                  child: Icon(Icons.close, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
 
-                // 사진 추가 버튼
+                // 제출(수정 완료) 단계 진행률
+                if (submitProgress > 0 && submitProgress < 1)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: LinearProgressIndicator(value: submitProgress),
+                  ),
+
+                // 사진 추가(지연 업로드: 로컬만 저장)
                 Align(
                   alignment: Alignment.centerRight,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.photo_library),
                     label: const Text('사진 추가'),
                     onPressed: () async {
-                      final url = await addOnePhotoToMyFeedback(
-                        context: context,
-                        googlePlaceId: googlePlaceId,
-                        onProgress: (p) => setState(() => uploadProgress = p),
-                      );
-                      setState(() => uploadProgress = 0);
-                      if (url != null) {
-                        // Firestore에 union 저장은 이미 됐고, 로컬에도 즉시 반영
-                        setState(() => localPhotoUrls.add(url));
+                      final p = await pickAndCompressOnePhoto();
+                      if (p != null) {
+                        setState(() => pendingPhotos.add(p));
                       }
                     },
                   ),
@@ -229,6 +288,7 @@ void showEditFeedbackSheet({
                     );
                   }),
                 ),
+
                 const SizedBox(height: 16),
 
                 // 시설 정보
@@ -248,37 +308,85 @@ void showEditFeedbackSheet({
 
                 const SizedBox(height: 16),
 
-                // 저장
+                // 저장(수정 완료)
                 ElevatedButton.icon(
                   icon: const Icon(Icons.save),
                   label: const Text("수정 완료"),
                   onPressed: () async {
-                    final updateData = <String, dynamic>{
-                      'comment': memoController.text,
-                      'rating': selectedEmotion,
-                      'timestamp': FieldValue.serverTimestamp(),
-                      // photoUrls는 추가/삭제 시점에 각각 실시간 반영했으므로 여기서 별도 수정 불필요
-                    };
-
-                    // features 반영
-                    if (selectedFeatures.isNotEmpty) {
-                      updateData['features'] = selectedFeatures;
-                    } else {
-                      updateData['features'] = FieldValue.delete();
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user == null) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('로그인이 필요합니다.')),
+                        );
+                      }
+                      return;
                     }
 
-                    // 피드백 문서 업데이트
-                    await FirebaseFirestore.instance
-                        .collection('places')
-                        .doc(googlePlaceId)
-                        .collection('feedbacks')
-                        .doc(feedbackId)
-                        .update(updateData);
+                    try {
+                      // 1) (있다면) 새로 추가한 로컬 사진들을 일괄 업로드
+                      List<String> newUrls = const <String>[];
+                      if (pendingPhotos.isNotEmpty) {
+                        newUrls = await uploadPendingPhotos(
+                          googlePlaceId: googlePlaceId,
+                          pending: pendingPhotos,
+                          onProgress: (p) {
+                            if (context.mounted) {
+                              setState(() => submitProgress = p);
+                            }
+                          },
+                        );
+                      }
 
-                    // 평균 평점 재계산
-                    await updateAverageRating(googlePlaceId);
+                      // 2) Firestore 문서 업데이트(기존 문서에 병합)
+                      final updateData = <String, dynamic>{
+                        'comment': memoController.text,
+                        'rating': selectedEmotion,
+                        'timestamp': FieldValue.serverTimestamp(),
+                      };
 
-                    if (context.mounted) Navigator.pop(context);
+                      if (selectedFeatures.isNotEmpty) {
+                        updateData['features'] = selectedFeatures;
+                      } else {
+                        updateData['features'] = FieldValue.delete();
+                      }
+
+                      // - 데이터 필드 업데이트
+                      await FirebaseFirestore.instance
+                          .collection('places')
+                          .doc(googlePlaceId)
+                          .collection('feedbacks')
+                          .doc(feedbackId)
+                          .set(updateData, SetOptions(merge: true));
+
+                      // - 새 사진 URL들 병합
+                      if (newUrls.isNotEmpty) {
+                        await upsertFeedbackDocument(
+                          googlePlaceId: googlePlaceId,
+                          feedbackDocId: feedbackId,
+                          data: const {},
+                          photoUrlsToAdd: newUrls,
+                        );
+                      }
+
+                      // 3) 평균 평점 재계산
+                      await updateAverageRating(googlePlaceId);
+
+                      if (context.mounted) Navigator.pop(context);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('수정 실패: $e')),
+                        );
+                      }
+                    } finally {
+                      if (context.mounted) {
+                        setState(() {
+                          submitProgress = 0.0;
+                          pendingPhotos.clear();
+                        });
+                      }
+                    }
                   },
                 ),
               ],
