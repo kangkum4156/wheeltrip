@@ -14,10 +14,10 @@ class EmergencyButton extends StatelessWidget {
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           ),
-          icon: const Icon(Icons.warning),
-          label: const Text("비상", style: TextStyle(fontSize: 16)),
+          icon: const Icon(Icons.warning, color: Colors.white,),
+          label: const Text("비상", style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
           onPressed: () async {
 
             final result = await EmergencySender.sendEmergencyAlert(context);
