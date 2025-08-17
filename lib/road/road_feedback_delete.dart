@@ -10,6 +10,10 @@ Future<void> deleteRoadFeedback(String routeId) async {
   final userRef = fs.collection('users').doc(user_email).collection('my_routes').doc(routeId);
 
   try {
+    // 1) userRef 문서에서 features 가져오기
+    final userDoc = await userRef.get();
+    final features = List<String>.from(userDoc.data()?['features'] ?? []);
+
     await userRef.delete();
 
     // 1) 피드백 문서 삭제
@@ -36,6 +40,29 @@ Future<void> deleteRoadFeedback(String routeId) async {
         'avgRate': avgRate,
         'rateCount': count,
       });
+    }
+
+    // 2) routeRef.featureCounts 감소시키기 (0이면 더 이상 빼지 않음)
+    if (features.isNotEmpty) {
+      final snap = await routeRef.get();
+      final currentCounts = Map<String, dynamic>.from(snap.data()?['featureCounts'] ?? {});
+
+      const defaultFeatures = ['경사로', '인도', '차도'];
+      final featureUpdates = <String, dynamic>{};
+
+      for (var f in defaultFeatures) {
+        if (features.contains(f)) {
+          final current = (currentCounts[f] ?? 0) as int;
+          if (current > 0) {
+            featureUpdates['featureCounts.$f'] = FieldValue.increment(-1);
+          }
+          // 0이면 빼지 않고 냅두기
+        }
+      }
+
+      if (featureUpdates.isNotEmpty) {
+        await routeRef.update(featureUpdates);
+      }
     }
 
     print('피드백 삭제 및 평균 평점 업데이트 완료');

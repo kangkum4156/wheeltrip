@@ -15,6 +15,8 @@ class RoadFirestoreService {
     final routesRef = _firestore.collection('routes');
     final usersRoutesRef = _firestore.collection('users').doc(userEmail).collection('my_routes');
 
+    const defaultFeatures = ['경사로', '인도', '차도'];
+
     // routes에 새 문서 생성 (ID 자동 생성)
     final newRouteDoc = await routesRef.add({
       'points': coords.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
@@ -22,6 +24,21 @@ class RoadFirestoreService {
       'rateCount': 1,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    // features 안에 있는 기본 feature(경사로, 인도, 차도)만 카운트 증가 + 없으면 0으로 설정
+    final featureCounts = <String, dynamic>{};
+    for (var f in defaultFeatures) {
+      if (features.contains(f)) {
+        featureCounts['featureCounts.$f'] = FieldValue.increment(1);
+      }
+      else{
+        featureCounts['featureCounts.$f']=FieldValue.increment(0);
+      }
+    }
+
+    if (featureCounts.isNotEmpty) {
+      await newRouteDoc.update(featureCounts);
+    }
 
     // feedbacks 서브컬렉션에 user_email 문서로 피드백 저장
     await routesRef.doc(newRouteDoc.id).collection('feedbacks').doc(userEmail).set({

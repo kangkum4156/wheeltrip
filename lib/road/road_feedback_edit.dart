@@ -101,6 +101,7 @@ Future<void> updateRoadFeedback(
       throw Exception("업데이트할 피드백이 없습니다.");
     }
     final oldData = feedbackSnap.data()!;
+    final oldFeatures = List<String>.from(oldData['features'] ?? []);
     final int oldRate = (oldData['rate'] ?? 0) as int;
 
     // 2) 피드백 업데이트 (rate, features, updatedAt)
@@ -136,6 +137,32 @@ Future<void> updateRoadFeedback(
       'avgRate': newAvg,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // 6) featureCounts 업데이트
+    const defaultFeatures = ['경사로', '인도', '차도'];
+    final currentCounts = Map<String, dynamic>.from(routeData['featureCounts'] ?? {});
+    final updates = <String, dynamic>{};
+
+    for (var f in defaultFeatures) {
+      // 기존 피드백에 있으면 -- (0보다 클 때만)
+      final oldHas = oldFeatures.contains(f);
+      final newHas = features.contains(f);
+
+      if (oldHas && !newHas) {
+        final current = (currentCounts[f] ?? 0) as int;
+        if (current > 0) {
+          updates['featureCounts.$f'] = FieldValue.increment(-1);
+        }
+      }
+      // 새 피드백에 있으면 ++
+      else if (!oldHas && newHas) {
+        updates['featureCounts.$f'] = FieldValue.increment(1);
+      }
+    }
+
+    if (updates.isNotEmpty) {
+      await routeRef.update(updates);
+    }
 
     print("피드백 수정 및 평균 업데이트 성공");
   } catch (e) {

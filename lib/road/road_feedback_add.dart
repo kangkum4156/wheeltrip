@@ -134,12 +134,27 @@ Future<void> addRoadFeedback(
     final int newCount = currentCount + 1;
     final double newAvg = totalScore / newCount;
 
+    // 기본 카운트 대상 feature
+    const defaultFeatures = ['경사로', '인도', '차도'];
+
+    // features 안에 있는 기본 feature만 카운트 증가
+    final featureCounts = <String, dynamic>{};
+    for (var f in defaultFeatures) {
+      if (features.contains(f)) {
+        featureCounts['featureCounts.$f'] = FieldValue.increment(1);
+      }
+    }
+
     // 4) 문서 업데이트
     await routeRef.update({
       'avgRate': newAvg,
       'rateCount': newCount,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    if (featureCounts.isNotEmpty) {
+      await routeRef.update(featureCounts);
+    }
 
     await userRef.set({
       'rate': rate,

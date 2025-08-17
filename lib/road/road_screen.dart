@@ -13,6 +13,7 @@ import 'package:wheeltrip/road/road_tmap.dart';
 import 'package:wheeltrip/road/road_new.dart';
 import 'package:wheeltrip/road/road_poly_tap.dart';
 import 'package:wheeltrip/profile/profile_marker.dart';
+import 'package:wheeltrip/road/road_icon.dart';
 
 // ✅ 추천 경로 로직
 import 'package:wheeltrip/road/route_recommender.dart';
@@ -32,6 +33,8 @@ class RoadScreenState extends State<RoadScreen> {
   Set<Circle> circles = {};
   Set<Polyline> polylines = {};
 
+  final RouteIconService routeIconService = RouteIconService();
+
   // ✅ 친구(연결된 사람) 마커들
   final Set<Marker> _friendMarkers = {};
   final DatabaseReference _locationRef =
@@ -39,6 +42,9 @@ class RoadScreenState extends State<RoadScreen> {
   StreamSubscription<DatabaseEvent>? _locationSub;
   Set<String> _allowedEmails = {};
   late final ProfileMarkerCache _markerHelper;
+
+  // feature 마커
+  final Set<Marker> _featureMarkers = {};
 
   List<Map<String, dynamic>> loadedRoutes = [];
 
@@ -138,6 +144,7 @@ class RoadScreenState extends State<RoadScreen> {
     loadedRoutes = await RoadFirestoreService.loadRoutes();
 
     final loadedPolylines = <Polyline>{};
+
     for (var route in loadedRoutes) {
       loadedPolylines.add(
         Polyline(
@@ -146,22 +153,29 @@ class RoadScreenState extends State<RoadScreen> {
           width: 7,
           color: RoadFirestoreService.getPolylineColor(route['avgRate']),
           consumeTapEvents: true,
-          onTap: () => onPolylineTap(
-            mapController: _mapController,
-            context: context,
-            routeId: route['id'],
-            coords: route['points'],
-            avgRate: route['avgRate'],
-            userEmail: user_email,
-            reloadRoutes: _loadAndDisplayRoutes,
-          ),
+          onTap: () =>
+              onPolylineTap(
+                mapController: _mapController,
+                context: context,
+                routeId: route['id'],
+                coords: route['points'],
+                avgRate: route['avgRate'],
+                userEmail: user_email,
+                reloadRoutes: _loadAndDisplayRoutes,
+              ),
         ),
       );
     }
 
+    // 2️⃣ feature 마커 처리
+    final featureMarkers = await routeIconService.getRouteMarkers();
+
     if (!mounted) return;
     setState(() {
       polylines = loadedPolylines;
+      // 친구 마커와 feature 마커 합치기
+      _featureMarkers.clear();
+      _featureMarkers.addAll(featureMarkers);
     });
   }
 
@@ -205,6 +219,8 @@ class RoadScreenState extends State<RoadScreen> {
       endPoint = null;
       circles.clear();
     });
+    // ✅ 저장 후 feature 마커 갱신
+    await _loadAndDisplayRoutes();
   }
 
   Future<void> _getRouteAndSave() async {
@@ -465,7 +481,7 @@ class RoadScreenState extends State<RoadScreen> {
         circles: circles,
         polylines: polylines,
         // ✅ 친구 프로필 마커 표시
-        markers: _friendMarkers,
+        markers: _friendMarkers.union(_featureMarkers),
         initialCameraPosition: const CameraPosition(
           target: LatLng(35.8880, 128.6106),
           zoom: 17,
