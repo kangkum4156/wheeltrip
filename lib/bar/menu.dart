@@ -1,7 +1,11 @@
+// lib/bar/menu.dart
 import 'package:flutter/material.dart';
-import 'package:wheeltrip/bar/guardian_add.dart';
+import 'package:wheeltrip/profile/profile.dart';
 import 'package:wheeltrip/bar/delete_firebase.dart';
-import 'package:wheeltrip/profile/profile.dart'; // ✅ 프로필 화면
+
+import 'package:wheeltrip/friend/friend_list.dart';
+import 'package:wheeltrip/friend/request.dart';
+import 'package:wheeltrip/friend/callable.dart';
 
 /// 홈 AppBar에 붙일 메뉴 버튼 위젯
 Widget buildAppMenuButton({
@@ -14,31 +18,31 @@ Widget buildAppMenuButton({
     onSelected: (action) async {
       switch (action) {
         case _AppMenuAction.manageAccount:
-        // ✅ 계정 관리 → 프로필 화면으로 이동
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          );
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
           break;
 
-        case _AppMenuAction.addGuardian:
-          final email = await _promptGuardianEmail(context);
+        case _AppMenuAction.addFriend:
+          final email = await _promptEmail(context, title: '친구 추가', hint: '상대 이메일(소문자)을 입력하세요');
           if (email != null && email.isNotEmpty) {
             try {
-              await GuardianAdd.addGuardianEmail(email);
+              await CallableGuardianService.sendInvite(email);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('보호자 추가 완료: $email')),
+                  SnackBar(content: Text('초대 전송 완료: $email')),
                 );
               }
             } catch (e) {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(e.toString())),
+                  SnackBar(content: Text('에러: $e')),
                 );
               }
             }
           }
+          break;
+
+        case _AppMenuAction.friendRequests:
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendRequestsScreen()));
           break;
 
         case _AppMenuAction.logout:
@@ -46,10 +50,11 @@ Widget buildAppMenuButton({
           break;
 
         case _AppMenuAction.delete:
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DeleteFirebase()),
-          );
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const DeleteFirebase()));
+          break;
+
+        case _AppMenuAction.friends:
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendListScreen()));
           break;
       }
     },
@@ -59,16 +64,24 @@ Widget buildAppMenuButton({
         child: ListTile(
           leading: Icon(Icons.manage_accounts),
           title: Text('계정 관리'),
-          contentPadding: EdgeInsets.zero,
           dense: true,
         ),
       ),
       PopupMenuItem(
-        value: _AppMenuAction.addGuardian,
+        value: _AppMenuAction.addFriend,
         child: ListTile(
           leading: Icon(Icons.person_add),
-          title: Text('보호자 추가'),
-          contentPadding: EdgeInsets.zero,
+          title: Text('친구 추가'),
+          subtitle: Text('상대에게 초대를 보냅니다'),
+          dense: true,
+        ),
+      ),
+      PopupMenuItem(
+        value: _AppMenuAction.friendRequests,
+        child: ListTile(
+          leading: Icon(Icons.inbox),
+          title: Text('친구 수락'),
+          subtitle: Text('받은 초대 목록 보기'),
           dense: true,
         ),
       ),
@@ -77,7 +90,14 @@ Widget buildAppMenuButton({
         child: ListTile(
           leading: Icon(Icons.logout),
           title: Text('로그아웃'),
-          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
+      ),
+      PopupMenuItem(
+        value: _AppMenuAction.friends,
+        child: ListTile(
+          leading: Icon(Icons.group),
+          title: Text('친구 목록'),
           dense: true,
         ),
       ),
@@ -86,7 +106,6 @@ Widget buildAppMenuButton({
         child: ListTile(
           leading: Icon(Icons.delete),
           title: Text('삭제'),
-          contentPadding: EdgeInsets.zero,
           dense: true,
         ),
       ),
@@ -94,34 +113,122 @@ Widget buildAppMenuButton({
   );
 }
 
-enum _AppMenuAction { manageAccount, addGuardian, logout, delete }
+enum _AppMenuAction { manageAccount, addFriend, friendRequests, friends, logout, delete }
 
-/// 보호자 이메일 입력 다이얼로그
-Future<String?> _promptGuardianEmail(BuildContext context) async {
+Future<String?> _promptEmail(BuildContext context, {required String title, required String hint}) async {
   final controller = TextEditingController();
   return showDialog<String>(
     context: context,
     builder: (ctx) {
       return AlertDialog(
-        title: const Text('보호자 추가'),
+        title: Text(title),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            hintText: '보호자 이메일을 입력하세요',
-          ),
+          decoration: InputDecoration(hintText: hint),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('추가'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('확인')),
         ],
       );
     },
   );
+}
+
+class FriendRequestsScreen extends StatelessWidget {
+  const FriendRequestsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('받은 친구 초대')),
+      body: StreamBuilder<List<GuardianRequest>>(
+        // 🔑 받은 초대 실시간 구독
+        stream: CallableGuardianService.myPendingInvites(),
+        builder: (context, snap) {
+          // ❗ 인덱스/권한 문제를 바로 볼 수 있도록 에러 출력
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('오류: ${snap.error}', textAlign: TextAlign.center),
+              ),
+            );
+          }
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final items = snap.data ?? [];
+          if (items.isEmpty) {
+            return const Center(child: Text('받은 초대가 없습니다.'));
+          }
+
+          return ListView.separated(
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final r = items[i];
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.person)),
+                title: Text(r.from),
+                subtitle: Text('상태: ${r.status}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: '수락',
+                      icon: const Icon(Icons.check_circle, color: Colors.green),
+                      onPressed: () async {
+                        try {
+                          await CallableGuardianService.respondInvite(
+                            fromEmailRaw: r.from,
+                            action: 'accepted',
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${r.from} 님과 연결되었습니다.')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('에러: $e')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    IconButton(
+                      tooltip: '거절',
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      onPressed: () async {
+                        try {
+                          await CallableGuardianService.respondInvite(
+                            fromEmailRaw: r.from,
+                            action: 'declined',
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${r.from} 님 초대를 거절했습니다.')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('에러: $e')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }
