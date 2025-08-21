@@ -7,9 +7,9 @@ class RouteIconService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final iconMap = {
-    "경사로": Icons.terrain,
-    "차도": Icons.directions_car,
-    "인도": Icons.directions_walk,
+    "경사로": Icons.terrain_rounded,
+    "계단": Icons.stairs_rounded,
+    "넓은 길": Icons.add_road,
   };
 
   Future<Set<Marker>> getRouteMarkers() async {
@@ -26,17 +26,15 @@ class RouteIconService {
       // 중앙 인덱스 point
       final midpoint = _getMidPoint(points);
 
-      // featureCounts에서 값이 1 이상인 것만 필터
-      final Map<String, dynamic> featureCounts = Map<String, dynamic>.from(
-          data['featureCounts'] ?? {});
-      final List<String> activeFeatures = featureCounts.entries
-          .where((entry) => (entry.value ?? 0) > 0)
-          .map((entry) => entry.key)
-          .toList();
+      // 표시 순서 명시
+      final iconsOrder = ["경사로", "계단", "넓은 길"];
 
-      // 아이콘 결정
-      final icons = activeFeatures
-          .map((f) => iconMap[f] ?? Icons.help_outline)
+      final featureCounts = Map<String, dynamic>.from(data['featureCounts'] ?? {});
+
+      // iconsOrder 기준으로 activeFeatures 필터링
+      final icons = iconsOrder
+          .where((feature) => featureCounts[feature] != null && featureCounts[feature] > 0)
+          .map((f) => iconMap[f]!)
           .toList();
 
       if (icons.isEmpty) continue;
@@ -58,14 +56,14 @@ class RouteIconService {
   LatLng _getMidPoint(List<dynamic> points) {
     final midIndex = (points.length ~/ 2);
     final midPoint = points[midIndex];
-    return LatLng(midPoint['lat'], midPoint['lng']);
+    return LatLng(midPoint['lat']-0.00002, midPoint['lng']);
   }
 }
 
 Future<BitmapDescriptor> createMarkerFromIcons(
     List<IconData> icons, {
-      int size = 60,
-      double spacing = 5,
+      int size = 15,
+      double spacing = 2,
     }) async {
   final totalWidth = (icons.length * size + (icons.length - 1) * spacing).toInt();
   final recorder = ui.PictureRecorder();
@@ -80,7 +78,7 @@ Future<BitmapDescriptor> createMarkerFromIcons(
     // 둥근 모서리 사각형 배경
     paint.color = Colors.blue;
     final rect = Rect.fromLTWH(dx.toDouble(), 0, size.toDouble(), size.toDouble());
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(12)); // 12는 모서리 반지름
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(3)); // 12는 모서리 반지름
     canvas.drawRRect(rrect, paint);
 
     // 아이콘

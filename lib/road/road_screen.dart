@@ -122,7 +122,7 @@ class RoadScreenState extends State<RoadScreen> {
           icon: icon,
           infoWindow: InfoWindow(title: name), // 이메일 표시 X
           anchor: const Offset(0.5, 0.5),
-          zIndex: 100.0, // 폴리라인 위로
+          zIndexInt: 100, // 폴리라인 위로
         );
       }());
     }
@@ -223,11 +223,10 @@ class RoadScreenState extends State<RoadScreen> {
     await _loadAndDisplayRoutes();
   }
 
-  Future<void> _getRouteAndSave() async {
+  Future<void> _getRoute() async {
     if (startPoint == null || endPoint == null) return;
 
     final coords = await TmapService.getWalkingRoute(startPoint!, endPoint!);
-    if (!mounted) return;
     if (coords.isEmpty) return;
 
     final tempPolyline = Polyline(
@@ -252,23 +251,6 @@ class RoadScreenState extends State<RoadScreen> {
         );
       } catch (_) {}
     }
-
-    final saved = await showNewBottomSheet(
-      context: context,
-      coords: coords,
-      onRouteSaved: (coords, rate, features) async {
-        await _saveNewRoute(coords, rate, features);
-      },
-    );
-
-    if (!mounted) return;
-    // 성공/취소 관계없이 temp 제거 및 상태 초기화
-    setState(() {
-      polylines.removeWhere((p) => p.polylineId.value == 'temp');
-      startPoint = null;
-      endPoint = null;
-      circles.clear();
-    });
   }
 
   /// ✅ 추천 경로 찾기 & 지도에 표시
@@ -350,6 +332,7 @@ class RoadScreenState extends State<RoadScreen> {
 
   void _resetSelection() {
     setState(() {
+      polylines.removeWhere((p) => p.polylineId.value == 'temp');
       startPoint = null;
       endPoint = null;
       circles.clear();
@@ -384,7 +367,8 @@ class RoadScreenState extends State<RoadScreen> {
             strokeWidth: 1,
           ),
         );
-        // ✅ 출발/도착 지정 완료 → 바텀시트로 선택
+        // ✅ 출발/도착 지정 완료 → 임시 경로 띄우면서 바텀시트 띄우기
+        _getRoute();
         _showRouteOptionSheet();
       }
     });
@@ -392,8 +376,7 @@ class RoadScreenState extends State<RoadScreen> {
 
   /// ✅ 추천 경로/피드백 등록 선택 바텀시트
   Future<void> _showRouteOptionSheet() async {
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: false,
       shape: const RoundedRectangleBorder(
@@ -424,32 +407,30 @@ class RoadScreenState extends State<RoadScreen> {
                 const SizedBox(height: 8),
                 const Text('선택한 출발지와 도착지로…'),
                 const SizedBox(height: 16),
-
-                // 추천 경로 보기
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.recommend),
-                    label: const Text('추천 경로 보기'),
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await _recommendAndShow();
-                      _resetSelection(); // 추천 경로는 내부에서 상태 초기화 하지 않으므로 여기서 초기화
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
+                // 추천 경로 쓸거면 여기에 아래 elevated 버튼 재할당 필요
 
                 // 피드백 등록
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton.icon(
                     icon: const Icon(Icons.add_comment),
                     label: const Text('피드백 등록'),
                     onPressed: () async {
-                      Navigator.pop(context);
-                      // _getRouteAndSave 내부에서 temp 추가/바텀시트/초기화까지 처리
-                      await _getRouteAndSave();
+                      Navigator.pop(context, true);
+                      // _getRouteAndSave 기능을 여기서 따로 작성해서 사용
+                      final saved = await showNewBottomSheet(
+                        context: context,
+                        coords: polylines
+                            .firstWhere((p) => p.polylineId.value == 'temp')
+                            .points,
+                        onRouteSaved: (coords, rate, features) async {
+                          await _saveNewRoute(coords, rate, features);
+                        },
+                      );
+
+                      if (saved != true) {
+                        _resetSelection();
+                      }
                     },
                   ),
                 ),
@@ -457,8 +438,7 @@ class RoadScreenState extends State<RoadScreen> {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context);
-                    _resetSelection();
+                    Navigator.pop(context,false);
                   },
                   child: const Text('취소'),
                 ),
@@ -468,6 +448,10 @@ class RoadScreenState extends State<RoadScreen> {
         );
       },
     );
+    // ✅ 바텀시트 닫힌 뒤 결과 처리
+    if (result != true) {
+      _resetSelection();
+    }
   }
 
   @override

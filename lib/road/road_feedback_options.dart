@@ -18,9 +18,9 @@ class RoadFeedbackOptions extends StatefulWidget {
 
 class _RoadFeedbackOptionsState extends State<RoadFeedbackOptions> {
   final List<Map<String, dynamic>> _defaultOptions = [
-    {"label": "경사로", "icon": Icons.terrain},
-    {"label": "차도", "icon": Icons.directions_car},
-    {"label": "인도", "icon": Icons.directions_walk},
+    {"label": "경사로", "icon": Icons.terrain_rounded},
+    {"label": "계단", "icon": Icons.stairs_rounded},
+    {"label": "넓은 길", "icon": Icons.add_road},
   ];
 
   List<String> _selected = [];

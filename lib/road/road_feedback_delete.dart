@@ -47,7 +47,7 @@ Future<void> deleteRoadFeedback(String routeId) async {
       final snap = await routeRef.get();
       final currentCounts = Map<String, dynamic>.from(snap.data()?['featureCounts'] ?? {});
 
-      const defaultFeatures = ['경사로', '인도', '차도'];
+      const defaultFeatures = ['경사로', '계단', '넓은 길'];
       final featureUpdates = <String, dynamic>{};
 
       for (var f in defaultFeatures) {

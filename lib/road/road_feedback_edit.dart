@@ -139,7 +139,7 @@ Future<void> updateRoadFeedback(
     });
 
     // 6) featureCounts 업데이트
-    const defaultFeatures = ['경사로', '인도', '차도'];
+    const defaultFeatures = ['경사로', '계단', '넓은 길'];
     final currentCounts = Map<String, dynamic>.from(routeData['featureCounts'] ?? {});
     final updates = <String, dynamic>{};
 

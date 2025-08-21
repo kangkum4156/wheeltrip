@@ -135,7 +135,7 @@ Future<void> addRoadFeedback(
     final double newAvg = totalScore / newCount;
 
     // 기본 카운트 대상 feature
-    const defaultFeatures = ['경사로', '인도', '차도'];
+    const defaultFeatures = ['경사로', '계단', '넓은 길'];
 
     // features 안에 있는 기본 feature만 카운트 증가
     final featureCounts = <String, dynamic>{};

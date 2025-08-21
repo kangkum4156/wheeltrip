@@ -15,7 +15,7 @@ class RoadFirestoreService {
     final routesRef = _firestore.collection('routes');
     final usersRoutesRef = _firestore.collection('users').doc(userEmail).collection('my_routes');
 
-    const defaultFeatures = ['경사로', '인도', '차도'];
+    const defaultFeatures = ['경사로', '계단', '넓은 길'];
 
     // routes에 새 문서 생성 (ID 자동 생성)
     final newRouteDoc = await routesRef.add({
