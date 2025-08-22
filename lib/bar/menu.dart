@@ -1,11 +1,16 @@
 // lib/bar/menu.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+
 import 'package:wheeltrip/profile/profile.dart';
 import 'package:wheeltrip/bar/delete_firebase.dart';
-
 import 'package:wheeltrip/friend/friend_list.dart';
 import 'package:wheeltrip/friend/request.dart';
 import 'package:wheeltrip/friend/callable.dart';
+
+// main.dart에 선언된 startCallback()을 사용해 서비스 시작
+import 'package:wheeltrip/main.dart' show startCallback;
 
 /// 홈 AppBar에 붙일 메뉴 버튼 위젯
 Widget buildAppMenuButton({
@@ -45,16 +50,20 @@ Widget buildAppMenuButton({
           await Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendRequestsScreen()));
           break;
 
+        case _AppMenuAction.friends:
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendListScreen()));
+          break;
+
+        case _AppMenuAction.bgLocation: // ✅ 백그라운드 위치 전송 설정 화면
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const BackgroundLocationScreen()));
+          break;
+
         case _AppMenuAction.logout:
           await onLogout();
           break;
 
         case _AppMenuAction.delete:
           await Navigator.push(context, MaterialPageRoute(builder: (_) => const DeleteFirebase()));
-          break;
-
-        case _AppMenuAction.friends:
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendListScreen()));
           break;
       }
     },
@@ -86,18 +95,28 @@ Widget buildAppMenuButton({
         ),
       ),
       PopupMenuItem(
-        value: _AppMenuAction.logout,
-        child: ListTile(
-          leading: Icon(Icons.logout),
-          title: Text('로그아웃'),
-          dense: true,
-        ),
-      ),
-      PopupMenuItem(
         value: _AppMenuAction.friends,
         child: ListTile(
           leading: Icon(Icons.group),
           title: Text('친구 목록'),
+          dense: true,
+        ),
+      ),
+      // ✅ 백그라운드 위치 전송 on/off 메뉴
+      PopupMenuItem(
+        value: _AppMenuAction.bgLocation,
+        child: ListTile(
+          leading: Icon(Icons.location_on),
+          title: Text('백그라운드 위치 전송'),
+          subtitle: Text('앱을 실행하지 않아도 위치 업로드'),
+          dense: true,
+        ),
+      ),
+      PopupMenuItem(
+        value: _AppMenuAction.logout,
+        child: ListTile(
+          leading: Icon(Icons.logout),
+          title: Text('로그아웃'),
           dense: true,
         ),
       ),
@@ -113,7 +132,15 @@ Widget buildAppMenuButton({
   );
 }
 
-enum _AppMenuAction { manageAccount, addFriend, friendRequests, friends, logout, delete }
+enum _AppMenuAction {
+  manageAccount,
+  addFriend,
+  friendRequests,
+  friends,
+  bgLocation, // ✅ 추가
+  logout,
+  delete,
+}
 
 Future<String?> _promptEmail(BuildContext context, {required String title, required String hint}) async {
   final controller = TextEditingController();
@@ -228,6 +255,106 @@ class FriendRequestsScreen extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+/// ✅ 백그라운드 위치 전송 ON/OFF 화면
+class BackgroundLocationScreen extends StatefulWidget {
+  const BackgroundLocationScreen({super.key});
+
+  @override
+  State<BackgroundLocationScreen> createState() => _BackgroundLocationScreenState();
+}
+
+class _BackgroundLocationScreenState extends State<BackgroundLocationScreen> {
+  bool _bgOn = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final p = await SharedPreferences.getInstance();
+    final on = p.getBool('bg_location_on') ?? false;
+    setState(() {
+      _bgOn = on;
+      _loading = false;
+    });
+  }
+
+  Future<void> _save(bool on) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('bg_location_on', on);
+  }
+
+  Future<void> _start() async {
+    final running = await FlutterForegroundTask.isRunningService;
+    if (!running) {
+      await FlutterForegroundTask.startService(
+        notificationTitle: '실시간 위치 전송 중',
+        notificationText: '앱을 종료해도 계속 전송됩니다.',
+        callback: startCallback, // main.dart의 콜백
+      );
+    }
+  }
+
+  Future<void> _stop() async {
+    await FlutterForegroundTask.stopService();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('백그라운드 위치 전송')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              title: const Text('백그라운드에서 위치 전송'),
+              subtitle: const Text('앱을 실행하지 않아도 주기적으로 위치를 업로드합니다'),
+              value: _bgOn,
+              onChanged: (v) async {
+                setState(() => _bgOn = v);
+                await _save(v);
+                if (v) {
+                  await _start();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('백그라운드 위치 전송 시작')),
+                    );
+                  }
+                } else {
+                  await _stop();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('백그라운드 위치 전송 중지')),
+                    );
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '안내',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '• Android 10+에서는 위치 권한을 "항상 허용"으로 설정해야 합니다.\n'
+                  '• Android 13+에서는 알림 권한을 허용해야 서비스가 유지됩니다.\n'
+                  '• 상단 알림이 보이는 동안 서비스는 실행 중입니다.',
+            ),
+          ],
+        ),
       ),
     );
   }
