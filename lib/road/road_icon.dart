@@ -54,10 +54,36 @@ class RouteIconService {
   }
 
   LatLng _getMidPoint(List<dynamic> points) {
-    final midIndex = (points.length ~/ 2);
-    final midPoint = points[midIndex];
-    return LatLng(midPoint['lat']-0.00002, midPoint['lng']);
+    if (points.isEmpty) {
+      throw ArgumentError("points 리스트가 비어있습니다.");
+    }
+
+    final midIndex = points.length ~/ 2;
+
+    if (points.length.isOdd) {
+      // ✅ 홀수 → 딱 중앙
+      final midPoint = points[midIndex];
+      return LatLng(midPoint['lat'], midPoint['lng']);
+    } else {
+      // ✅ 짝수 → 중앙 두 점 확인
+      final p1 = points[midIndex - 1];
+      final p2 = points[midIndex];
+
+      if (p1['lat'] == p2['lat'] && p1['lng'] == p2['lng']) {
+        // ✅ 두 점이 같으면 → mid, mid+1의 평균
+        final p3 = points[midIndex + 1];
+        final midLat = (p2['lat'] + p3['lat']) / 2;
+        final midLng = (p2['lng'] + p3['lng']) / 2;
+        return LatLng(midLat, midLng);
+      } else {
+        // ✅ 두 점이 다르면 → (p1, p2)의 평균
+        final midLat = (p1['lat'] + p2['lat']) / 2;
+        final midLng = (p1['lng'] + p2['lng']) / 2;
+        return LatLng(midLat, midLng);
+      }
+    }
   }
+
 }
 
 Future<BitmapDescriptor> createMarkerFromIcons(

@@ -14,9 +14,7 @@ import 'package:wheeltrip/road/road_new.dart';
 import 'package:wheeltrip/road/road_poly_tap.dart';
 import 'package:wheeltrip/profile/profile_marker.dart';
 import 'package:wheeltrip/road/road_icon.dart';
-
-// ✅ 추천 경로 로직
-import 'package:wheeltrip/road/route_recommender.dart';
+import 'package:wheeltrip/road/road_cross_markers.dart';
 
 class RoadScreen extends StatefulWidget {
   const RoadScreen({super.key});
@@ -32,6 +30,7 @@ class RoadScreenState extends State<RoadScreen> {
 
   Set<Circle> circles = {};
   Set<Polyline> polylines = {};
+  Set<Marker> _crosspointMarkers = {};
 
   final RouteIconService routeIconService = RouteIconService();
 
@@ -54,6 +53,7 @@ class RoadScreenState extends State<RoadScreen> {
     _markerHelper = ProfileMarkerCache();
     _initFriendsMarkers();
     _loadAndDisplayRoutes();
+    _loadCrossMarkers();
   }
 
   @override
@@ -61,6 +61,82 @@ class RoadScreenState extends State<RoadScreen> {
     _locationSub?.cancel();
     super.dispose();
   }
+
+  Future<void> _loadCrossMarkers() async {
+    final markers = await RoadCrossMarkers.loadCrosspoints(
+      selectedStart: startPoint,
+      selectedEnd: endPoint,
+      onTap: _onCrosspointTap,
+    );
+    if (!mounted) return;
+    setState(() => _crosspointMarkers = markers);
+  }
+
+  // 마커 선택 시 메소드
+  void _onCrosspointTap(LatLng pos, String name) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(name),
+        content: const Text("이곳을 출발지 또는 도착지로 선택하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () async{
+              setState(() {
+                startPoint = pos;
+              });
+              _loadCrossMarkers();
+              Navigator.pop(context);
+
+              // ✅ 출발과 도착 동일 여부 체크
+              if (startPoint != null && endPoint != null) {
+                if (startPoint == endPoint) {
+                  _showSamePointError();
+                  _resetSelection();
+                  return;
+                }
+                await _getRoute();
+                _showRouteOptionSheet();
+              }
+            },
+            child: const Text("출발지"),
+          ),
+          TextButton(
+            onPressed: () async {
+              setState(() {
+                endPoint = pos;
+              });
+              _loadCrossMarkers();
+              Navigator.pop(context);
+
+              // ✅ 출발과 도착 동일 여부 체크
+              if (startPoint != null && endPoint != null) {
+                if (startPoint == endPoint) {
+                  _showSamePointError();
+                  _resetSelection();
+                  return;
+                }
+                await _getRoute();
+                _showRouteOptionSheet();
+              }
+            },
+            child: const Text("도착지"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSamePointError() {
+    showDialog(
+      context: context,
+      builder: (_) => const AlertDialog(
+        title: Text("경로 생성 불가"),
+        content: Text("출발지와 도착지가 같습니다."),
+      ),
+    );
+  }
+
 
   Future<void> _initFriendsMarkers() async {
     final myEmail = FirebaseAuth.instance.currentUser?.email;
@@ -215,9 +291,7 @@ class RoadScreenState extends State<RoadScreen> {
       );
 
       // 새 경로 저장 후 입력 상태 초기화
-      startPoint = null;
-      endPoint = null;
-      circles.clear();
+      _resetSelection();
     });
     // ✅ 저장 후 feature 마커 갱신
     await _loadAndDisplayRoutes();
@@ -253,83 +327,6 @@ class RoadScreenState extends State<RoadScreen> {
     }
   }
 
-  /// ✅ 추천 경로 찾기 & 지도에 표시
-  Future<void> _recommendAndShow() async {
-    if (startPoint == null || endPoint == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('지도를 두 번 탭해서 출발지와 도착지를 먼저 지정해 주세요.')),
-      );
-      return;
-    }
-
-    final best = await RouteRecommender.recommendBestRoute(
-      start: startPoint!,
-      end: endPoint!,
-    );
-
-    if (!mounted) return;
-
-    if (best == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('추천할 수 있는 경로가 없습니다. (평점 1 포함/근접 경로 없음)')),
-      );
-      return;
-    }
-
-    final List<LatLng> pts = List<LatLng>.from(best['points']);
-    final avg = best['avgRate'] as double;
-    final dist = best['distance'] as double;
-
-    // 기존 추천 폴리라인 제거 후 추가
-    setState(() {
-      polylines.removeWhere((p) => p.polylineId.value == 'recommended');
-      polylines.add(Polyline(
-        polylineId: const PolylineId('recommended'),
-        points: pts,
-        color: Colors.purpleAccent,
-        width: 10,
-        zIndex: 999,
-      ));
-    });
-
-    // 화면 맞춤
-    if (_mapController != null && pts.isNotEmpty) {
-      final bounds = _boundsFromLatLngList(pts);
-      try {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 60),
-        );
-      } catch (_) {}
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-        Text('추천 경로: ★ ${avg.toStringAsFixed(1)}  /  ${dist.toStringAsFixed(0)} m'),
-      ),
-    );
-  }
-
-  LatLngBounds _boundsFromLatLngList(List<LatLng> list) {
-    double? x0, x1, y0, y1;
-    for (final latLng in list) {
-      if (x0 == null) {
-        x0 = x1 = latLng.latitude;
-        y0 = y1 = latLng.longitude;
-      } else {
-        if (latLng.latitude > x1!) x1 = latLng.latitude;
-        if (latLng.latitude < x0) x0 = latLng.latitude;
-        if (latLng.longitude > y1!) y1 = latLng.longitude;
-        if (latLng.longitude < y0!) y0 = latLng.longitude;
-      }
-    }
-    return LatLngBounds(
-      southwest: LatLng(x0!, y0!),
-      northeast: LatLng(x1!, y1!),
-    );
-  }
-
   void _resetSelection() {
     setState(() {
       polylines.removeWhere((p) => p.polylineId.value == 'temp');
@@ -337,41 +334,7 @@ class RoadScreenState extends State<RoadScreen> {
       endPoint = null;
       circles.clear();
     });
-  }
-
-  void _onMapTap(LatLng pos) {
-    final adjustedPos = LatLng(pos.latitude + 0.00001, pos.longitude - 0.00001);
-
-    setState(() {
-      if (startPoint == null) {
-        startPoint = adjustedPos;
-        circles.add(
-          Circle(
-            circleId: const CircleId('start'),
-            center: adjustedPos,
-            radius: 5,
-            fillColor: Colors.green.withAlpha((255 * 0.8).round()),
-            strokeColor: Colors.green,
-            strokeWidth: 1,
-          ),
-        );
-      } else if (endPoint == null) {
-        endPoint = adjustedPos;
-        circles.add(
-          Circle(
-            circleId: const CircleId('end'),
-            center: adjustedPos,
-            radius: 5,
-            fillColor: Colors.red.withAlpha((255 * 0.8).round()),
-            strokeColor: Colors.red,
-            strokeWidth: 1,
-          ),
-        );
-        // ✅ 출발/도착 지정 완료 → 임시 경로 띄우면서 바텀시트 띄우기
-        _getRoute();
-        _showRouteOptionSheet();
-      }
-    });
+    _loadCrossMarkers();
   }
 
   /// ✅ 추천 경로/피드백 등록 선택 바텀시트
@@ -461,11 +424,10 @@ class RoadScreenState extends State<RoadScreen> {
         onMapCreated: (controller) => _mapController = controller,
         myLocationEnabled: true,
         myLocationButtonEnabled: true,
-        onTap: _onMapTap,
         circles: circles,
         polylines: polylines,
         // ✅ 친구 프로필 마커 표시
-        markers: _friendMarkers.union(_featureMarkers),
+        markers: _friendMarkers.union(_featureMarkers).union(_crosspointMarkers),
         initialCameraPosition: const CameraPosition(
           target: LatLng(35.8880, 128.6106),
           zoom: 17,
