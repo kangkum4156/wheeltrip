@@ -1,10 +1,14 @@
-import 'dart:io';
+// profile_screen.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+
+import 'delete_account.dart';
+import 'package:wheeltrip/signin/main_login.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,18 +22,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   double _uploadProgress = 0; // 0~1
 
   User? get _user => FirebaseAuth.instance.currentUser;
-  String get _docId => _user?.email ?? ''; // users/{email} 문서 사용
+  String get _docId => _user?.email ?? ''; // users/{email}
+
+  Future<void> _signOut() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+    );
+  }
 
   Future<void> _pickAndUpload() async {
     if (_user == null) return;
-
     try {
       final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (picked == null) return;
 
       setState(() => _localImage = File(picked.path));
 
-      // Storage 업로드
       final ref = FirebaseStorage.instance
           .ref()
           .child('profile_images')
@@ -49,7 +60,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await task;
       final url = await ref.getDownloadURL();
 
-      // Firestore 업데이트
       await FirebaseFirestore.instance
           .collection('users')
           .doc(_docId)
@@ -85,16 +95,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (ok != true) return;
 
     try {
-      // Storage 파일 삭제(있다면)
       if (currentUrl != null && currentUrl.trim().isNotEmpty) {
         try {
           final ref = FirebaseStorage.instance.refFromURL(currentUrl);
           await ref.delete();
-        } catch (_) {
-          // 없을 수도 있으니 무시
-        }
+        } catch (_) {}
       } else {
-        // 혹시 URL이 없더라도 경로로 시도
         try {
           final ref = FirebaseStorage.instance
               .ref()
@@ -104,7 +110,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         } catch (_) {}
       }
 
-      // Firestore 필드 제거
       await FirebaseFirestore.instance
           .collection('users')
           .doc(_docId)
@@ -146,14 +151,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // 상단 - 프로필 사진 + 버튼
               Center(
                 child: Column(
                   children: [
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // 프로필 사진
                         CircleAvatar(
                           radius: 60,
                           backgroundImage: _localImage != null
@@ -165,9 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ? const Icon(Icons.person, size: 48)
                               : null,
                         ),
-                        const SizedBox(width: 16), // 사진과 버튼 사이 간격
-
-                        // 버튼들
+                        const SizedBox(width: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -185,7 +186,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-
                     if (_uploadProgress > 0 && _uploadProgress < 1) ...[
                       const SizedBox(height: 8),
                       LinearProgressIndicator(value: _uploadProgress),
@@ -195,7 +195,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 24),
 
-              // 아래는 간단한 정보 표시 (원하면 수정 가능 UI로 확장)
               ListTile(
                 leading: const Icon(Icons.email),
                 title: const Text('이메일'),
@@ -219,6 +218,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: const Text('모드'),
                   subtitle: Text('${data['mode']}'),
                 ),
+
+              const SizedBox(height: 32),
+
+              // 로그아웃 버튼
+              ElevatedButton.icon(
+                icon: const Icon(Icons.logout),
+                onPressed: _signOut,
+                label: const Text('로그아웃'),
+              ),
+              const SizedBox(height: 8),
+
+              // 계정 삭제 버튼
+              OutlinedButton.icon(
+                icon: const Icon(Icons.delete_forever),
+                label: const Text('계정 삭제'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                ),
+                onPressed: () async {
+                  final email = _user!.email!;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DeleteAccountPage(email: email),
+                    ),
+                  );
+                },
+              ),
             ],
           );
         },

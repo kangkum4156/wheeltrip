@@ -58,9 +58,6 @@ Widget buildAppMenuButton({
           await Navigator.push(context, MaterialPageRoute(builder: (_) => const BackgroundLocationScreen()));
           break;
 
-        case _AppMenuAction.logout:
-          await onLogout();
-          break;
 
         case _AppMenuAction.delete:
           await Navigator.push(context, MaterialPageRoute(builder: (_) => const DeleteFirebase()));
@@ -112,14 +109,7 @@ Widget buildAppMenuButton({
           dense: true,
         ),
       ),
-      PopupMenuItem(
-        value: _AppMenuAction.logout,
-        child: ListTile(
-          leading: Icon(Icons.logout),
-          title: Text('로그아웃'),
-          dense: true,
-        ),
-      ),
+
       PopupMenuItem(
         value: _AppMenuAction.delete,
         child: ListTile(
@@ -138,7 +128,6 @@ enum _AppMenuAction {
   friendRequests,
   friends,
   bgLocation, // ✅ 추가
-  logout,
   delete,
 }
 
