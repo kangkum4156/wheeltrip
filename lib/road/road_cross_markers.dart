@@ -10,7 +10,7 @@ class RoadCrossMarkers {
 
   /// 마커 아이콘 생성
   static Future<BitmapDescriptor> _createCircleMarker({
-    double size = 50,
+    double size = 10,
     Color fillColor = Colors.blue,
     Color borderColor = Colors.white,
     double borderWidth = 3,
@@ -63,10 +63,10 @@ class RoadCrossMarkers {
           : Colors.blue;
 
       final icon = await _createCircleMarker(
-        size: 35,
+        size: 10,
         fillColor: color,
         borderColor: Colors.white,
-        borderWidth: 3,
+        borderWidth: 1,
       );
 
       markers.add(

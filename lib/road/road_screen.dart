@@ -16,6 +16,9 @@ import 'package:wheeltrip/profile/profile_marker.dart';
 import 'package:wheeltrip/road/road_icon.dart';
 import 'package:wheeltrip/road/road_cross_markers.dart';
 
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+
 class RoadScreen extends StatefulWidget {
   const RoadScreen({super.key});
 
@@ -27,6 +30,7 @@ class RoadScreenState extends State<RoadScreen> {
   GoogleMapController? _mapController;
   LatLng? startPoint;
   LatLng? endPoint;
+  String? willsaveRouteID;
 
   Set<Circle> circles = {};
   Set<Polyline> polylines = {};
@@ -95,8 +99,13 @@ class RoadScreenState extends State<RoadScreen> {
                   _resetSelection();
                   return;
                 }
-                await _getRoute();
-                _showRouteOptionSheet();
+                final canShow = await _getRoute();
+                if (canShow) {
+                  _showRouteOptionSheet();
+                }
+                else{
+                  _resetSelection();
+                }
               }
             },
             child: const Text("출발지"),
@@ -116,8 +125,13 @@ class RoadScreenState extends State<RoadScreen> {
                   _resetSelection();
                   return;
                 }
-                await _getRoute();
-                _showRouteOptionSheet();
+                final canShow = await _getRoute();
+                if (canShow) {
+                  _showRouteOptionSheet();
+                }
+                else{
+                  _resetSelection();
+                }
               }
             },
             child: const Text("도착지"),
@@ -256,11 +270,13 @@ class RoadScreenState extends State<RoadScreen> {
   }
 
   Future<void> _saveNewRoute(
+      String? routeID,
       List<LatLng> coords,
       int rate,
       List<String> feature,
       ) async {
     final result = await RoadFirestoreService.saveNewRoute(
+      routeId: routeID,
       userEmail: user_email,
       coords: coords,
       rate: rate,
@@ -268,6 +284,7 @@ class RoadScreenState extends State<RoadScreen> {
     );
 
     if (!mounted) return;
+
     setState(() {
       polylines.add(
         Polyline(
@@ -297,11 +314,46 @@ class RoadScreenState extends State<RoadScreen> {
     await _loadAndDisplayRoutes();
   }
 
-  Future<void> _getRoute() async {
-    if (startPoint == null || endPoint == null) return;
+  // 해시 ID 생성기
+  String generateRouteHash(List<LatLng> coords) {
+    // forward 문자열
+    final forward = coords.map((p) => "${p.latitude},${p.longitude}").join("|");
+    // reversed 문자열
+    final backward = coords.reversed.map((p) => "${p.latitude},${p.longitude}").join("|");
+
+    // 사전순으로 작은 문자열 선택
+    final canonical = forward.compareTo(backward) < 0 ? forward : backward;
+
+    // SHA-256 해시 생성
+    final bytes = utf8.encode(canonical);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  // 중복이 아닐 경우에만 temp 라인 생성
+  Future<bool> _getRoute() async {
+    if (startPoint == null || endPoint == null) return false;
 
     final coords = await TmapService.getWalkingRoute(startPoint!, endPoint!);
-    if (coords.isEmpty) return;
+    if (coords.isEmpty) return false;
+
+    final routeHash = generateRouteHash(coords);
+    willsaveRouteID = routeHash;
+
+    final docSnapshot = await FirebaseFirestore.instance
+        .collection('routes')
+        .doc(routeHash)
+        .get();
+
+    if (docSnapshot.exists) {
+      // 이미 존재하는 경로라면 처리 종료 (원하면 팝업)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("이미 존재하는 경로입니다.")),
+        );
+      }
+      return false;
+    }
 
     final tempPolyline = Polyline(
       polylineId: const PolylineId('temp'),
@@ -325,10 +377,13 @@ class RoadScreenState extends State<RoadScreen> {
         );
       } catch (_) {}
     }
+
+    return true;
   }
 
   void _resetSelection() {
     setState(() {
+      willsaveRouteID = null;
       polylines.removeWhere((p) => p.polylineId.value == 'temp');
       startPoint = null;
       endPoint = null;
@@ -387,7 +442,7 @@ class RoadScreenState extends State<RoadScreen> {
                             .firstWhere((p) => p.polylineId.value == 'temp')
                             .points,
                         onRouteSaved: (coords, rate, features) async {
-                          await _saveNewRoute(coords, rate, features);
+                          await _saveNewRoute(willsaveRouteID, coords, rate, features);
                         },
                       );
 

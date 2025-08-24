@@ -11,14 +11,18 @@ class RoadFirestoreService {
     required List<LatLng> coords,
     required int rate,
     required List<String> features,
+    required String? routeId,
   }) async {
     final routesRef = _firestore.collection('routes');
     final usersRoutesRef = _firestore.collection('users').doc(userEmail).collection('my_routes');
 
     const defaultFeatures = ['경사로', '계단', '넓은 길'];
 
+    // routes 컬렉션에 routeId를 docID로 사용
+    final newRouteDoc = routesRef.doc(routeId);
+
     // routes에 새 문서 생성 (ID 자동 생성)
-    final newRouteDoc = await routesRef.add({
+    await newRouteDoc.set({
       'points': coords.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
       'avgRate': rate.toDouble(),
       'rateCount': 1,
@@ -41,24 +45,22 @@ class RoadFirestoreService {
     }
 
     // feedbacks 서브컬렉션에 user_email 문서로 피드백 저장
-    await routesRef.doc(newRouteDoc.id).collection('feedbacks').doc(userEmail).set({
+    await newRouteDoc.collection('feedbacks').doc(userEmail).set({
       'rate': rate,
       'features': features,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
     // users/{userEmail}/my_routes에도 같은 문서 저장 (routeId를 docID로)
-    await usersRoutesRef.doc(newRouteDoc.id).set({
+    await usersRoutesRef.doc(routeId).set({
       'rate': rate,
       'features': features,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
     return {
-      'id': newRouteDoc.id,
-      'points': coords,
+      'id': routeId,
       'avgRate': rate.toDouble(),
-      'rateCount': 1,
     };
   }
 
