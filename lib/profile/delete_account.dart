@@ -125,7 +125,8 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
         sum += rating;
         count += 1;
       }
-      final feats = (data['features'] as List?)?.whereType<String>() ?? const [];
+      final feats =
+          (data['features'] as List?)?.whereType<String>() ?? const [];
       for (final f in feats) {
         featureCounts[f] = (featureCounts[f] ?? 0) + 1;
       }
@@ -146,9 +147,10 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     }
   }
 
-  // users/{email} 예상 서브컬렉션 정리 (클라이언트 SDK는 listCollections 미지원이라 이름 지정)
+  // 사용자 문서의 서브컬렉션 정리
   Future<void> _deleteUserSubcollections(DocumentReference userDocRef) async {
-    const subcols = ['my_routes', 'saved_places']; // 필요 시 추가
+    // // 사용자 요청: guardian_requests 도 함께 정리
+    const subcols = ['my_routes', 'saved_places', 'guardian_requests'];
     for (final name in subcols) {
       final qs = await userDocRef.collection(name).get();
       for (final d in qs.docs) {
@@ -172,12 +174,14 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       if (u != null && u.isNotEmpty) photoUrls.add(u);
     }
 
-    // 2) 모든 users 문서의 counter_email 배열에서 내 이메일 제거 (배치 커밋)
+    // 2) 모든 users 문서의 counter_email 배열에서 내 이메일 제거
+    //    + 각 문서의 guardian_requests/{내이메일} 문서도 삭제 (문서가 없으면 no-op)
     final usersSnap = await fs.collection('users').get();
     WriteBatch batch = fs.batch();
     int cnt = 0;
 
     Future<void> commitIfFull() async {
+      // Firestore 배치 한도는 500 write → 안전 버퍼로 450에서 커밋
       if (cnt >= 450) {
         await batch.commit();
         batch = fs.batch();
@@ -186,10 +190,17 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     }
 
     for (final d in usersSnap.docs) {
+      // counter_email 배열에서 제거
       batch.update(d.reference, {
         'counter_email': FieldValue.arrayRemove([email]),
       });
       cnt++;
+
+      // guardian_requests/{삭제하려는유저이메일} 문서 삭제
+      final grDoc = d.reference.collection('guardian_requests').doc(email);
+      batch.delete(grDoc);
+      cnt++;
+
       await commitIfFull();
     }
     await batch.commit();
@@ -300,14 +311,17 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                     context: context,
                     builder: (_) => AlertDialog(
                       title: const Text('정말 삭제할까요?'),
-                      content: const Text('모든 데이터가 삭제됩니다. 되돌릴 수 없습니다.'),
+                      content:
+                      const Text('모든 데이터가 삭제됩니다. 되돌릴 수 없습니다.'),
                       actions: [
                         TextButton(
-                          onPressed: () => Navigator.pop(context, false),
+                          onPressed: () =>
+                              Navigator.pop(context, false),
                           child: const Text('취소'),
                         ),
                         TextButton(
-                          onPressed: () => Navigator.pop(context, true),
+                          onPressed: () =>
+                              Navigator.pop(context, true),
                           child: const Text('삭제'),
                         ),
                       ],
