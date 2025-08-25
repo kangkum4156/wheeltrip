@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 import 'package:wheeltrip/signin/main_login.dart';
+import 'package:wheeltrip/road/road_feedback_delete.dart';
 
 class DeleteAccountPage extends StatefulWidget {
   final String email;
@@ -34,20 +35,20 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       await _deleteAll(widget.email);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('계정이 삭제되었습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('계정이 삭제되었습니다.')));
 
       // 삭제/로그아웃 이후 LoginScreen으로 스택 교체
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
+        (route) => false,
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
         setState(() => _busy = false);
       }
     }
@@ -58,18 +59,38 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    /*
     try {
-      final methods =
-      await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
+      final methods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(
+        email,
+      );
       final isPasswordUser = methods.contains('password');
       if (isPasswordUser) {
         if (password.isEmpty) {
           throw Exception('최근 로그인 필요: 비밀번호를 입력해주세요.');
         }
-        final cred =
-        EmailAuthProvider.credential(email: email, password: password);
+        final cred = EmailAuthProvider.credential(
+          email: email,
+          password: password,
+        );
         await user.reauthenticateWithCredential(cred);
       }
+    } on FirebaseAuthException catch (e) {
+      throw Exception(e.message ?? e.code);
+    }
+    */
+
+    if (password.isEmpty) {
+      throw Exception('최근 로그인 필요: 비밀번호를 입력해주세요.');
+    }
+
+
+    try {
+      final cred = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(cred);
     } on FirebaseAuthException catch (e) {
       throw Exception(e.message ?? e.code);
     }
@@ -107,42 +128,28 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     }
   }
 
-  // places/routes 피드백 삭제 후 평균/특징 재계산
   Future<void> _recalcAggregates({
     required DocumentReference parentRef,
-    required bool isRoute, // routes면 true, places면 false
+    required double? score,
   }) async {
     final fbSnap = await parentRef.collection('feedbacks').get();
+    final placeSnap = await parentRef.get();
 
-    double sum = 0.0;
-    int count = 0;
-    final Map<String, int> featureCounts = {};
+    if (!placeSnap.exists) return;
 
-    for (final d in fbSnap.docs) {
-      final data = d.data();
-      final rating = (data['rating'] as num?)?.toDouble();
-      if (rating != null) {
-        sum += rating;
-        count += 1;
-      }
-      final feats =
-          (data['features'] as List?)?.whereType<String>() ?? const [];
-      for (final f in feats) {
-        featureCounts[f] = (featureCounts[f] ?? 0) + 1;
-      }
-    }
+    final data = placeSnap.data() as Map<String, dynamic>;
+    final avgRating = (data['avgRating'] as num?)?.toDouble() ?? 0.0;
+    double sum = avgRating * fbSnap.docs.length;
+    sum -= score ?? 0; // 여기서 null 처리
+
+    int count = fbSnap.docs.length - 1;
 
     if (count > 0) {
       final avg = double.parse((sum / count).toStringAsFixed(2));
-      await parentRef.set({
-        (isRoute ? 'avgRate' : 'avgRating'): avg,
-        'featureCounts': featureCounts,
-      }, SetOptions(merge: true));
+      await parentRef.set({'avgRating': avg}, SetOptions(merge: true));
     } else {
-      // 피드백이 0개면 필드 제거(원한다면 0.0 유지로 바꿔도 됨)
       await parentRef.set({
-        (isRoute ? 'avgRate' : 'avgRating'): FieldValue.delete(),
-        'featureCounts': FieldValue.delete(),
+        'avgRating': FieldValue.delete(),
       }, SetOptions(merge: true));
     }
   }
@@ -206,35 +213,36 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     await batch.commit();
 
     // 3) places/*/feedbacks/{email} 삭제 + photoUrls 수집 + 재계산
-    final placesSnap = await fs.collection('places').get();
-    for (final p in placesSnap.docs) {
-      final fbRef = p.reference.collection('feedbacks').doc(email);
+    final myPlacesSnap = await userDocRef.collection('saved_places').get();
+    for (final p in myPlacesSnap.docs) {
+      final placeId = p.id;
+      final placeRef = fs.collection('places').doc(placeId);
+
+      final fbRef = placeRef.collection('feedbacks').doc(email);
       final fbSnap = await fbRef.get();
+      final rating = (fbSnap.data()?['rating'] as num?)?.toDouble();
+
       if (fbSnap.exists) {
         final fb = fbSnap.data() as Map<String, dynamic>;
+        // 삭제할 url 수집
         final urls =
             (fb['photoUrls'] as List?)?.whereType<String>() ??
-                const Iterable<String>.empty();
+            const Iterable<String>.empty();
         photoUrls.addAll(urls);
+
+        // 평점 재계산
+        await _recalcAggregates(parentRef: placeRef, score: rating);
+
+        // 피드백 문서 삭제
         await fbRef.delete();
-        await _recalcAggregates(parentRef: p.reference, isRoute: false);
       }
     }
 
-    // 4) routes/*/feedbacks/{email} 삭제 + photoUrls 수집 + 재계산
-    final routesSnap = await fs.collection('routes').get();
-    for (final r in routesSnap.docs) {
-      final fbRef = r.reference.collection('feedbacks').doc(email);
-      final fbSnap = await fbRef.get();
-      if (fbSnap.exists) {
-        final fb = fbSnap.data() as Map<String, dynamic>;
-        final urls =
-            (fb['photoUrls'] as List?)?.whereType<String>() ??
-                const Iterable<String>.empty();
-        photoUrls.addAll(urls);
-        await fbRef.delete();
-        await _recalcAggregates(parentRef: r.reference, isRoute: true);
-      }
+    // 4) 내 routes 피드백 삭제 (my_routes 기반)
+    final myRoutesSnap = await userDocRef.collection('my_routes').get();
+    for (final doc in myRoutesSnap.docs) {
+      final routeId = doc.id;
+      await deleteRoadFeedback(routeId);
     }
 
     // 5) Realtime Database 정리
@@ -304,32 +312,35 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
               child: FilledButton.icon(
                 icon: const Icon(Icons.delete_forever),
                 label: Text(_busy ? '삭제 중...' : '영구 삭제'),
-                onPressed: _busy
-                    ? null
-                    : () async {
-                  final ok = await showDialog<bool>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('정말 삭제할까요?'),
-                      content:
-                      const Text('모든 데이터가 삭제됩니다. 되돌릴 수 없습니다.'),
-                      actions: [
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.pop(context, false),
-                          child: const Text('취소'),
-                        ),
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.pop(context, true),
-                          child: const Text('삭제'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (ok != true) return;
-                  await _deleteFlow();
-                },
+                onPressed:
+                    _busy
+                        ? null
+                        : () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder:
+                                (_) => AlertDialog(
+                                  title: const Text('정말 삭제할까요?'),
+                                  content: const Text(
+                                    '모든 데이터가 삭제됩니다. 되돌릴 수 없습니다.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(context, false),
+                                      child: const Text('취소'),
+                                    ),
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(context, true),
+                                      child: const Text('삭제'),
+                                    ),
+                                  ],
+                                ),
+                          );
+                          if (ok != true) return;
+                          await _deleteFlow();
+                        },
               ),
             ),
           ],
